@@ -49,18 +49,21 @@ def make_head_solid(p):
     return ell.common(keep)
 
 
-def make_scalp_arc(p, ear_point, radius=None):
+def make_scalp_arc(p, centre_point, radius=None):
     """
-    The arc a leg of the given radius sweeps across the reference scalp:
-    the intersection of a sphere centred on the ear point with the head.
-    Trimmed to z >= 0.
+    The arc the marker sweeps across the reference scalp: the intersection
+    of a sphere centred on the PIVOT with the head. Trimmed to z >= 0.
+
+    Centred on the pivot, not the ear point. With the ball joint free those
+    are 46.5 mm apart, and drawing the arc about the wrong one would show a
+    curve the instrument never traces.
     """
     R = p["ref_arc_radius"] if radius is None else radius
     m = App.Matrix()
     m.scale(p["ref_head_semi_x"], p["ref_head_semi_y"], p["ref_head_semi_z"])
     ell = Part.makeSphere(1.0).transformGeometry(m)
     ell.translate(Vector(0.0, p["ref_head_center_y"], p["ref_head_center_z"]))
-    arc = ell.section(Part.makeSphere(R, _v(ear_point)))
+    arc = ell.section(Part.makeSphere(R, _v(centre_point)))
     big = 4.0 * max(p["ref_head_semi_x"], p["ref_head_semi_y"], p["ref_head_semi_z"])
     keep = Part.makeBox(2 * big, 2 * big, 2 * big, Vector(-big, -big, 0.0))
     return arc.common(keep)
@@ -95,6 +98,17 @@ def build(doc, p, d, warnings, group=None):
     add("HEAD_CENTER", Part.Vertex(_v(info["head_center"])))
     add("HEAD_TOP", Part.Vertex(_v(info["head_top"])))
 
+    # The points the instrument actually turns about. With the ball joint
+    # locked these coincide with the ear references; with it free they sit
+    # ball_centre_standoff further out, and everything about the arcs is
+    # measured from HERE.
+    add("LEFT_PIVOT", Part.Vertex(_v(info["left_pivot"])),
+        "LEFT_PIVOT (%s)" % info["pivot_mode"])
+    add("RIGHT_PIVOT", Part.Vertex(_v(info["right_pivot"])),
+        "RIGHT_PIVOT (%s)" % info["pivot_mode"])
+    add("PivotAxis", Part.makeLine(_v(info["left_pivot"]),
+                                   _v(info["right_pivot"])))
+
     tip = info["marker_tip"]
     if tip is None:
         warnings.append(
@@ -105,8 +119,13 @@ def build(doc, p, d, warnings, group=None):
     else:
         add("MARKER_TIP", Part.Vertex(_v(tip)))
         # The two radii, drawn so they can be measured in the GUI.
-        add("Radius_Left", Part.makeLine(_v(info["left_ear_reference"]), _v(tip)))
-        add("Radius_Right", Part.makeLine(_v(info["right_ear_reference"]), _v(tip)))
+        # Drawn from the pivots: these are the radii that must be equal.
+        add("Radius_Left", Part.makeLine(_v(info["left_pivot"]), _v(tip)))
+        add("Radius_Right", Part.makeLine(_v(info["right_pivot"]), _v(tip)))
+        post = info.get("marker_tip_posterior")
+        if post is not None:
+            add("MARKER_TIP_POSTERIOR", Part.Vertex(_v(post)))
+            add("Midline", Part.makeLine(_v(tip), _v(post)))
 
     # --- frame ------------------------------------------------------------
     add("EarAxis", Part.makeLine(_v(info["left_ear_reference"]),
@@ -117,9 +136,9 @@ def build(doc, p, d, warnings, group=None):
         add("HeadReference", make_head_solid(p), "HeadReference (PROVISIONAL)")
 
     if p["ref_build_arcs"]:
-        for side, ear in (("Left", info["left_ear_reference"]),
-                          ("Right", info["right_ear_reference"])):
-            arc = make_scalp_arc(p, ear)
+        for side, centre in (("Left", info["left_pivot"]),
+                             ("Right", info["right_pivot"])):
+            arc = make_scalp_arc(p, centre)
             if not arc.Edges:
                 warnings.append("REFERENCE: %s scalp arc is empty at radius "
                                 "%.1f mm (arc misses the reference head)."
