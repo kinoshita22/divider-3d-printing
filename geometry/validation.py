@@ -399,8 +399,8 @@ def check_not_yet_built(rep, p):
     sec = "K. OUTSTANDING WORK"
     rep.add(sec, "Clinical validation of the ear piece", "REQUIRED", TODO,
             "insertion geometry is an engineering placeholder")
-    rep.add(sec, "Marker model", "NOT SPECIFIED", TODO,
-            "marker_diameter and marker_tip_offset are placeholders")
+    rep.add(sec, "Eartip fitment", "NOT VERIFIED", TODO,
+            "no silicone eartip has been fitted to the nozzle")
     rep.add(sec, "Confirm ear reference depth", "REQUIRED", TODO,
             "ref_ear_depth_below_vertex is an input to the CT measurement, "
             "not a result of it")
@@ -573,30 +573,115 @@ def check_modules(rep, p, d):
             INFO, "TUNE AFTER FIRST PRINT")
 
 
-def check_ear_piece(rep, p, d):
-    sec = "U. EAR PIECE - NOT CLINICALLY VALIDATED"
-    rep.add(sec, "stopper diameter", "%.1f mm" % p["earpiece_stopper_diameter"],
-            INFO, "client-stated nominal")
-    rep.add(sec, "tip diameter", "%.1f mm" % p["earpiece_tip_diameter"], INFO,
-            "PROVISIONAL - not clinically validated")
-    rep.add(sec, "tip to stopper face", "%.1f mm" % p["earpiece_stopper_offset"],
-            INFO, "PROVISIONAL - this is what limits insertion depth")
-    rep.add(sec, "cone half angle", "%.1f deg" % p["earpiece_taper_angle"], INFO,
-            "PROVISIONAL")
-    rep.limit(sec, "stopper overhang past the cone base",
-              (p["earpiece_stopper_diameter"] - d["earpiece_base_diameter"]) / 2.0,
-              lo=2.0, note="mm of flange that actually stops insertion")
-    rep.limit(sec, "thread floor behind the socket", d["earpiece_socket_floor"],
+
+
+def check_pivot(rep, p, d, info):
+    sec = "V. HOW THE INSTRUMENT SWINGS"
+    mode = p.get("pivot_mode", "ball_centre")
+    rep.add(sec, "pivot mode", mode, INFO,
+            "ball_centre = joint left free, ear piece stays in the ear; "
+            "ear_point = joint locked, whole instrument turns at the canal")
+    rep.add(sec, "pivot separation (half)",
+            "%.2f mm" % info["pivot_half_distance"], INFO,
+            "ear half-distance is %.2f mm; the rest is the ear-piece stack"
+            % (p["ref_ear_to_ear_distance"] / 2.0))
+    rep.add(sec, "usable arc radius in this mode",
+            "%.1f - %.1f mm" % (info["reachable_radius_min"],
+                                info["reachable_radius_max"]), INFO,
+            "set by the reference head: smaller never reaches the midline, "
+            "larger overshoots the vault")
+    st = PASS
+    if not (info["reachable_radius_min"] <= p["ref_arc_radius"]
+            <= info["reachable_radius_max"]):
+        st = FAIL
+    rep.add(sec, "chosen radius is usable", "%.1f mm" % p["ref_arc_radius"], st,
+            "" if st == PASS else "outside the band above - no midline crossing")
+    rep.add(sec, "pivots symmetric about x=0",
+            "%.2e mm" % abs(info["left_pivot"][0] + info["right_pivot"][0]),
+            PASS, "this symmetry is what makes the construction exact; it "
+                  "requires the ear pieces to be inserted equally on both sides")
+
+
+def check_joint_motion(rep, p, d, joint):
+    sec = "W. BALL JOINT DURING THE STROKE"
+    if not joint or not joint.get("reachable"):
+        rep.add(sec, "stroke analysis", "not evaluated", INFO, "")
+        return
+    rep.add(sec, "spin swept by the stroke",
+            "%.0f deg" % joint["spin_swept"], INFO,
+            "rotation about the ear canal axis. The joint's spin is "
+            "UNLIMITED, so this is what carries the arc")
+    rep.add(sec, "tilt demanded", "%.2f - %.2f deg"
+            % (joint["tilt_min"], joint["tilt_max"]), INFO,
+            "angle between the leg and the ear canal, at the best roll for "
+            "each position")
+    rep.limit(sec, "tilt margin", joint["limit"] - joint["tilt_max"], lo=2.0,
+              note="ball_joint_max_angle minus the worst demand, in degrees")
+    rep.add(sec, "positions sampled", "%d" % joint["targets"], INFO,
+            "along the arc from one midline crossing to the other")
+    st = PASS if joint["within_limit"] else FAIL
+    rep.add(sec, "stroke achievable without unclamping", "yes" if st == PASS else "NO",
+            st, "" if st == PASS else "the tilt demand exceeds the joint's range")
+
+
+def check_marker_fit(rep, p, d):
+    sec = "X. MARKER FIT"
+    rep.add(sec, "specified marker", "%.1f x %.0f mm"
+            % (p["marker_diameter"], p["marker_length"]), INFO,
+            "client-stated: AS ONE ProShare skin marker")
+    rep.add(sec, "bore diameter", "%.2f mm" % (2 * d["marker_bore_radius"]),
+            INFO, "TUNE AFTER FIRST PRINT")
+    rep.add(sec, "clamped length", "%.0f mm" % p["marker_holder_length"], INFO)
+    rep.add(sec, "protrudes towards the scalp",
+            "%.0f mm" % p["marker_tip_offset"], INFO,
+            "a user SETTING, not a fixed feature - the same value must be "
+            "used for both arcs")
+    rep.limit(sec, "pen tail behind the holder", d["marker_tail_length"],
+              lo=0.0, fmt="%.0f", unit="mm",
+              note="the pen is longer than the holder, so the rest trails out "
+                   "of the back and must clear the leg")
+    rep.limit(sec, "tail clearance to the leg tip block",
+              d["marker_tail_clearance"], lo=1.0,
+              note="radial gap; raise marker_mount_offset if short")
+
+
+def check_ear_piece_nozzle(rep, p, d):
+    sec = "U. EAR PIECE (silicone eartip carrier)"
+    rep.add(sec, "concept", "commercial silicone eartip on a nozzle", INFO,
+            "client-revised 2026-09-18: printed resin no longer contacts the ear")
+    rep.add(sec, "nozzle shaft", "%.1f mm dia" % p["earpiece_nozzle_diameter"],
+            INFO, "CLIENT-STATED")
+    rep.add(sec, "retaining bead", "%.1f mm dia"
+            % p["earpiece_nozzle_lip_diameter"], INFO, "CLIENT-STATED")
+    rep.add(sec, "nozzle length", "%.1f mm" % p["earpiece_nozzle_length"], INFO,
+            "CLIENT-STATED")
+    rep.add(sec, "stopper", "%.1f mm dia" % p["earpiece_stopper_diameter"], INFO,
+            "client-stated; now also the wall the silicone base seats against")
+    rep.limit(sec, "bead interference on the radius",
+              d["earpiece_lip_interference"], lo=0.3, hi=0.8,
+              note="how far the eartip stretches to pass the bead. Too little "
+                   "and it falls off, too much and it will not go on by hand")
+    rep.limit(sec, "shaft length behind the bead",
+              d["earpiece_nozzle_grip_length"], lo=2.5,
+              note="what the eartip actually grips")
+    rep.limit(sec, "stopper overhang past the bead",
+              d["earpiece_stopper_overhang"], lo=3.0,
+              note="flange left proud of the nozzle to seat the silicone base")
+    rep.limit(sec, "thread floor behind the socket",
+              p["earpiece_body_length"] - p["earpiece_socket_depth"],
               lo=p["warn_min_wall"])
-    rep.add(sec, "CLINICAL SIGN-OFF", "REQUIRED", TODO,
-            "no insertion dimension here has been validated by anyone "
-            "clinically qualified")
+    rep.add(sec, "eartip size and seating depth", "NOT VERIFIED", TODO,
+            "no eartip has been fitted; standard-size is assumed. Confirm "
+            "against the actual product on the first test print")
+    rep.add(sec, "CLINICAL SIGN-OFF", "STILL REQUIRED", TODO,
+            "insertion depth and the Ø15 stopper remain clinical decisions")
 
 
 # --------------------------------------------------------------------------
 def run(p, d, shapes, placed, warnings, path=None, measure_gaps=True,
         check_mesh=True, assembly=None, info=None, marker_tip_built=None,
         sweep=True):
+    """Build the report. `assembly` may carry a "joint" stroke analysis."""
     rep = Report("DIVIDER / COMPASS PROTOTYPE - CAD VALIDATION REPORT")
     check_solids(rep, shapes)
     check_bounding_boxes(rep, shapes)
@@ -613,16 +698,25 @@ def run(p, d, shapes, placed, warnings, path=None, measure_gaps=True,
         sweep_result = None
         if sweep and assembly.get("solved"):
             from . import compass as compass_mod
-            left, _ = refmath.ear_points(p, d)
-            targets = refmath.sweep_targets(p, d, left)
+            # Sample the stroke about the PIVOT the instrument actually turns
+            # on, not the ear point. With the ball joint free those differ by
+            # the whole ear-piece stack, and mixing them up produces a sweep
+            # the instrument was never going to follow.
+            pivot_l, _ = refmath.pivot_points(p, d)
+            targets = refmath.sweep_targets(p, d, pivot_l)
             if targets:
                 sweep_result = compass_mod.sweep_clearance(
-                    p, d, assembly["half_angle"], left, targets)
+                    p, d, assembly["half_angle"], pivot_l, targets)
         check_clearance(rep, p, d, assembly, sweep_result)
+    if info is not None:
+        check_pivot(rep, p, d, info)
+    if assembly is not None:
+        check_joint_motion(rep, p, d, assembly.get("joint"))
     check_hinge(rep, p, d)
     check_printing(rep, p, d, shapes)
     check_modules(rep, p, d)
-    check_ear_piece(rep, p, d)
+    check_marker_fit(rep, p, d)
+    check_ear_piece_nozzle(rep, p, d)
     check_not_yet_built(rep, p)
     check_provisional(rep, p)
 

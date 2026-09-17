@@ -42,7 +42,7 @@ from FreeCAD import Vector
 import parameters
 from geometry import (ball_joint, compass, ear_piece, legs, main_hinge,
                       marker_holder, primitives as prim, reference_geometry,
-                      validation)
+                      refmath, validation)
 
 DOC_NAME = "divider_prototype"
 
@@ -173,15 +173,22 @@ def build(opts):
     info = reference_geometry.build(doc, p, d, warnings, ref_group)
 
     # --- PHASE 7: solve the instrument and pose it ------------------------
-    ear = info["left_ear_reference"]
-    target = info["marker_tip_anterior"] or info["head_top"]
-    asm = compass.assembly(p, d, ear_point=ear, target=target)
+    pivot_l, _pivot_r = refmath.pivot_points(p, d)
+    target = info["marker_tip_anterior"]
+    if target is None:
+        raise prim.GeometryError(
+            "arc radius %.1f mm never reaches the mid-sagittal scalp with "
+            "pivot_mode=%r. Usable band is %.1f to %.1f mm."
+            % (p["ref_arc_radius"], p["pivot_mode"],
+               info["reachable_radius_min"], info["reachable_radius_max"]))
+    asm = compass.assembly(p, d, pivot_point=pivot_l, target=target)
     if not asm["solved"]:
         raise prim.GeometryError(
             "arc radius %.1f mm is outside what the legs can span (%.1f to "
             "%.1f mm). Change ref_arc_radius or leg_chord_length."
             % (p["ref_arc_radius"], asm["radius_info"]["min"],
                asm["radius_info"]["max"]))
+    asm["joint"] = compass.joint_demand(p, d, asm["half_angle"])
     pose = asm["pose"]
 
     # --- PHASES 2-6: the components ---------------------------------------
@@ -266,12 +273,17 @@ def build(opts):
               % (name, sh.Volume, bb.XLength, bb.YLength, bb.ZLength,
                  lb.ZLength, count))
     print("")
-    print("  arc radius        %.2f mm  (opening %.2f deg)"
-          % (asm["functional"]["radius"], asm["opening_angle"]))
+    print("  arc radius        %.2f mm from the %s  (opening %.2f deg)"
+          % (asm["functional"]["radius"], p["pivot_mode"], asm["opening_angle"]))
     print("  marker tip built  (%.2f, %.2f, %.2f)"
           % (marker_tip_built.x, marker_tip_built.y, marker_tip_built.z))
     print("  head clearance    %.2f mm  at roll %.1f deg"
           % (asm["clearance"], asm["roll"]))
+    jd = asm.get("joint") or {}
+    if jd.get("reachable"):
+        print("  ball joint        spin %.0f deg sweeps the stroke; tilt %.1f-%.1f deg "
+              "of %.0f available" % (jd["spin_swept"], jd["tilt_min"],
+                                     jd["tilt_max"], jd["limit"]))
     print("")
     print("  validation: %d PASS  %d WARN  %d FAIL  %d TODO"
           % (rep.count(validation.PASS), rep.count(validation.WARN),

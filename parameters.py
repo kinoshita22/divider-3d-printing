@@ -58,7 +58,26 @@ PARAMS = {
     "ref_scalp_thickness": 6.0,            # PROVISIONAL  bone -> skin offset
     "ref_ear_depth_below_vertex": 130.0,   # PROVISIONAL  INPUT to the CT measurement,
                                            # not measured from it. Confirm clinically.
-    "ref_arc_radius": 130.0,               # PROVISIONAL  compass opening used for both arcs
+    # Radius of the struck arc, measured FROM THE PIVOT (see pivot_mode).
+    # 160 mm about the ball centre puts the crossings within ~2 mm of where
+    # the client's assumed 130 mm would, measured ear-to-marker: same marking
+    # points, different reference. Usable band in this mode is 134.6-180.2 mm.
+    "ref_arc_radius": 160.0,               # PROVISIONAL
+
+    # ---- how the instrument actually swings -------------------------------
+    # Which point the instrument turns about while an arc is being drawn.
+    #   "ball_centre" : ball joint left at light friction. The ear piece stays
+    #                   put in the ear and the compass spins about the ball.
+    #                   Comfortable, and what the client describes.
+    #   "ear_point"   : ball joint locked. The whole instrument pivots at the
+    #                   ear canal, so the ear piece twists in the ear.
+    # The bisector construction holds either way, because both pivots are
+    # symmetric about the midline - but the two modes need DIFFERENT radii.
+    "pivot_mode": "ball_centre",
+    # Direction of the ear canal, as angles off pure lateral. Both zero means
+    # the canal axis is horizontal and points straight at the opposite ear.
+    "ref_ear_axis_anterior_angle": 0.0,    # PROVISIONAL  degrees towards the face
+    "ref_ear_axis_superior_angle": 0.0,    # PROVISIONAL  degrees towards the vertex
     "ref_build_head_solid": True,          # draw the reference ellipsoid
     "ref_build_arcs": True,                # draw the two scalp arcs
 
@@ -156,12 +175,18 @@ PARAMS = {
     # ======================================================================
 
     # ---- ear piece (PHASE 4) ---------------------------------------------
-    # Client-stated: smooth tapered cone, stopper flange of about 15 mm
-    # diameter a few millimetres back from the tip.
-    # NONE OF THIS IS CLINICALLY VALIDATED.
-    "earpiece_tip_diameter": 6.0,          # PROVISIONAL - NOT clinically validated
-    "earpiece_taper_angle": 11.0,          # PROVISIONAL - half angle of the cone
-    "earpiece_stopper_offset": 7.0,        # PROVISIONAL - tip to stopper ("a few mm")
+    # REVISED at the client's request (2026-09-18): the printed resin no
+    # longer contacts the ear. The tip is now an earphone-style nozzle that
+    # carries a commercial silicone eartip (standard size), and the Ø15
+    # stopper is retained to act as the wall the silicone base seats against.
+    # The three nozzle figures below are CLIENT-STATED.
+    "earpiece_nozzle_diameter": 4.5,       # CLIENT-STATED  shaft the eartip grips
+    "earpiece_nozzle_lip_diameter": 5.5,   # CLIENT-STATED  retaining bead, max dia at the tip
+    "earpiece_nozzle_length": 6.0,         # CLIENT-STATED  stopper face to tip
+    "earpiece_nozzle_lip_length": 0.5,     # PROVISIONAL  axial length of the bead crest
+    "earpiece_nozzle_lip_ramp": 0.6,       # PROVISIONAL  lead-in ramp onto the bead
+    "earpiece_nozzle_tip_chamfer": 0.5,    # PROVISIONAL  eases the eartip on
+    "earpiece_nozzle_tip_diameter": 3.8,   # PROVISIONAL  flat left at the very tip
     "earpiece_stopper_diameter": 15.0,     # client-stated nominal
     "earpiece_stopper_thickness": 3.0,     # PROVISIONAL
     "earpiece_body_length": 14.0,          # PROVISIONAL  stopper -> stud interface
@@ -218,9 +243,18 @@ PARAMS = {
 
     # ---- marker holder (PHASE 6) -----------------------------------------
     # Split clamp so the marker can be swapped and the bore adjusted.
-    "marker_diameter": 10.0,               # PROVISIONAL - NO MARKER SPECIFIED YET
+    # Marker specified by the client 2026-09-18:
+    #   AS ONE ProShare skin marker, Ø9 mm barrel x 167 mm long.
+    # 167 mm will not fit inside a holder, so the bore is a THROUGH hole and
+    # the tail trails back past the leg - which is why the barrel is offset
+    # from the tenon. See geometry/marker_holder.py.
+    "marker_diameter": 9.0,                # CLIENT-STATED  barrel diameter
+    "marker_length": 167.0,                # CLIENT-STATED  overall pen length
     "marker_clearance": 0.25,              # TUNE AFTER FIRST PRINT
-    "marker_holder_length": 34.0,          # PROVISIONAL
+    "marker_holder_length": 34.0,          # PROVISIONAL  clamped length
+    "marker_mount_offset": 18.0,           # barrel axis offset from the tenon, so the
+                                           # pen's tail clears the leg tip block
+    "marker_bridge_thickness": 12.0,       # arm joining the tenon to the barrel
     "marker_clamp_thickness": 4.0,         # PROVISIONAL  wall around the bore
     "marker_screw_diameter": 4.0,          # PROVISIONAL  clamp screw
     "marker_screw_pitch": 0.7,
@@ -230,7 +264,6 @@ PARAMS = {
     "marker_clamp_ear_height": 14.0,
     "marker_nut_across_flats": 7.0,        # M4 hex nut, captured in a pocket
     "marker_nut_thickness": 3.2,
-    "marker_holder_floor": 4.0,            # material behind the blind bore
     "marker_tip_offset": 25.0,             # PROVISIONAL  bore end -> pen tip
 }
 
@@ -258,6 +291,8 @@ PROVISIONAL = {
     "ref_scalp_thickness": "Bone-to-skin offset added to the CT measurement. Assumed, not measured.",
     "ref_ear_depth_below_vertex": "INPUT to the CT measurement, not a result of it. The ear canal "
                                   "cannot be located reliably by geometry alone. Confirm clinically.",
+    "ref_ear_axis_anterior_angle": "Ear canal direction. Assumed straight lateral; not measured.",
+    "ref_ear_axis_superior_angle": "Ear canal direction. Assumed straight lateral; not measured.",
     "ref_arc_radius": "Working compass opening. Must be chosen by the clinical user.",
 
     # --- ball joint ---------------------------------------------------------
@@ -267,10 +302,14 @@ PROVISIONAL = {
     "ball_joint_max_angle": "Required tilt range has not been specified by the client.",
     "ball_stud_thread_diameter": "Ear-piece interface sized by feel, not by load.",
 
-    # --- ear piece: NONE of this is clinically validated ---------------------
-    "earpiece_tip_diameter": "NOT clinically validated. Insertion geometry is a placeholder.",
-    "earpiece_taper_angle": "NOT clinically validated.",
-    "earpiece_stopper_offset": "NOT clinically validated. This is what limits insertion depth.",
+    # --- ear piece ------------------------------------------------------------
+    # The nozzle diameters and length are CLIENT-STATED and so are not listed
+    # here. What remains provisional is the detail shape of the bead and the
+    # parts behind the stopper.
+    "earpiece_nozzle_lip_length": "Bead crest width. Chosen for printability, not from an eartip spec.",
+    "earpiece_nozzle_lip_ramp": "Lead-in ramp onto the bead. Chosen so the eartip can be pushed on by hand.",
+    "earpiece_nozzle_tip_chamfer": "Front chamfer. Chosen to ease the eartip on.",
+    "earpiece_nozzle_tip_diameter": "Flat left at the very tip. Not specified.",
     "earpiece_stopper_thickness": "Not specified; chosen for printed stiffness.",
     "earpiece_body_length": "Set by the thread socket depth, not by anatomy.",
     "earpiece_body_diameter": "Chosen to clear the stopper fillet.",
@@ -299,9 +338,9 @@ PROVISIONAL = {
     "connector_pin_diameter": "Fastener schedule not defined.",
 
     # --- marker holder ---------------------------------------------------------
-    "marker_diameter": "NO MARKER HAS BEEN SPECIFIED. Placeholder barrel diameter.",
-    "marker_holder_length": "Depends on the unspecified marker.",
-    "marker_clamp_thickness": "Depends on the unspecified marker.",
+    "marker_holder_length": "Clamped length. Chosen for grip, not from a requirement.",
+    "marker_mount_offset": "Set so the pen's tail clears the leg. No load case analysed.",
+    "marker_clamp_thickness": "Chosen for printed stiffness.",
     "marker_screw_diameter": "Fastener schedule not defined.",
     "marker_tip_offset": "Depends on the unspecified marker. It is also a user SETTING, "
                          "not a fixed feature: the same value must be used for both arcs.",
@@ -462,13 +501,23 @@ def derive(p):
         d["stud_top_z"] = p["ball_stem_length"]
 
     # ---- ear piece --------------------------------------------------------
-    # Cone grows from the tip to the stopper face.
-    d["earpiece_base_diameter"] = (p["earpiece_tip_diameter"]
-                                   + 2.0 * p["earpiece_stopper_offset"]
-                                   * math.tan(rad(p["earpiece_taper_angle"])))
-    d["earpiece_total_length"] = (p["earpiece_stopper_offset"]
-                                  + p["earpiece_stopper_thickness"]
-                                  + p["earpiece_body_length"])
+    # Nozzle, stopper flange, body. The silicone eartip covers the nozzle and
+    # bottoms against the stopper, so the resin never touches the ear.
+    d["earpiece_nozzle_base_z"] = (p["earpiece_body_length"]
+                                   + p["earpiece_stopper_thickness"])
+    d["earpiece_total_length"] = (d["earpiece_nozzle_base_z"]
+                                  + p["earpiece_nozzle_length"])
+    # Free length of Ø nozzle shaft behind the bead: this is what the eartip
+    # actually grips once it has snapped past the bead.
+    d["earpiece_nozzle_grip_length"] = (p["earpiece_nozzle_length"]
+                                        - p["earpiece_nozzle_lip_length"]
+                                        - p["earpiece_nozzle_lip_ramp"]
+                                        - p["earpiece_nozzle_tip_chamfer"])
+    # How far the eartip has to stretch to pass the bead, on the radius.
+    d["earpiece_lip_interference"] = (p["earpiece_nozzle_lip_diameter"]
+                                      - p["earpiece_nozzle_diameter"]) / 2.0
+    d["earpiece_stopper_overhang"] = (p["earpiece_stopper_diameter"]
+                                      - p["earpiece_nozzle_lip_diameter"]) / 2.0
     # Material behind the female thread, at the bottom of the blind socket.
     d["earpiece_socket_floor"] = p["earpiece_body_length"] - p["earpiece_socket_depth"]
 
@@ -540,6 +589,14 @@ def derive(p):
     # ---- marker holder -----------------------------------------------------
     d["marker_bore_radius"] = p["marker_diameter"] / 2.0 + p["marker_clearance"]
     d["marker_holder_outer_radius"] = d["marker_bore_radius"] + p["marker_clamp_thickness"]
+    # The pen is longer than the holder, so part of it protrudes towards the
+    # scalp and the rest trails out of the back.
+    d["marker_tail_length"] = (p["marker_length"] - p["marker_tip_offset"]
+                               - p["marker_holder_length"])
+    # Gap between the trailing pen and the leg's tip block, on the radius.
+    d["marker_tail_clearance"] = (p["marker_mount_offset"]
+                                  - p["leg_tip_width"] / 2.0
+                                  - d["marker_bore_radius"])
 
     # ---- reference frame --------------------------------------------------
     d["ear_half_distance"] = p["ref_ear_to_ear_distance"] / 2.0
