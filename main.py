@@ -54,6 +54,7 @@ COMPONENT_SOURCES = (
     ("HingeKnob", main_hinge, 1),
     ("BallStud", ball_joint, 1),
     ("Socket", ball_joint, 1),
+    ("BasePlug", ball_joint, 1),
     ("Collar", ball_joint, 1),
     ("EarPiece", ear_piece, 1),
     ("MarkerHolder", marker_holder, 1),

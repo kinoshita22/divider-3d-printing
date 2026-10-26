@@ -82,7 +82,9 @@ def module_mating_point(p, d, which):
     cannot be reduced to a distance along the module axis.
     """
     if which == "ball":
-        return Vector(0.0, 0.0, d["socket_base_bottom_z"])
+        # The tenon moved onto the base plug when the socket was opened for
+        # rear loading, so the leg seats below the plug's flange.
+        return Vector(0.0, 0.0, d["joint_mating_z"])
     if which == "marker":
         return marker_mod.tenon_face_local(p, d)
     raise ValueError(which)
@@ -131,6 +133,7 @@ def component_placements(p, d, half_angle):
     out["BallStud"] = _module_placement(ear_frame, out["Leg_Pivot"].Rotation,
                                         module_mating_point(p, d, "ball"))
     out["Socket"] = out["BallStud"]
+    out["BasePlug"] = out["BallStud"]
     out["Collar"] = out["BallStud"]
     # Seated on the stud's relief neck, and spun by the thread phase offset
     # so the printed female thread actually meshes with the male one.
@@ -206,7 +209,7 @@ def _sample_points(p, d, half_angle, placements, n=48):
     #     on the joint axis with the collar's radius as the allowance.
     pl = placements["BallStud"]
     for i in range(11):
-        z = d["socket_base_bottom_z"] + (d["collar_top_z"] - d["socket_base_bottom_z"]) * i / 10.0
+        z = d["joint_mating_z"] + (d["collar_top_z"] - d["joint_mating_z"]) * i / 10.0
         pts.append((pl.multVec(Vector(0, 0, z)), d["collar_outer_radius"],
                     "ball joint"))
 

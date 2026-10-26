@@ -102,16 +102,39 @@ PARAMS = {
     "socket_wall_thickness": 3.5,
     "socket_split_width": 1.2,             # slot width
     "socket_split_count": 4,               # number of clamping fingers
-    "socket_slot_root_offset": 2.0,        # slot root, measured below the cavity bottom
+    "socket_slot_root_depth": 7.0,         # slot root, measured BELOW the ball centre
     "socket_slot_relief_diameter": 2.6,    # keyhole relief at each slot root
     "socket_slot_inner_ratio": 0.55,       # slot inner radius, as a fraction of cavity_radius
     "socket_taper_angle": 6.0,             # half-angle of the external collet cone
     "socket_min_tip_wall": 1.2,            # wall left at the very tip of a finger
-    "socket_floor_thickness": 5.0,         # material below the cavity. Must leave a
-                                           # floor under the slot relief - see validation.
+
+    # ---- ball joint : rear loading (REVISED 2026-10-26) -------------------
+    # The ball is no longer pressed in through the mouth. The socket's bottom
+    # is open, the ball drops in from below, and a threaded plug closes it.
+    # See geometry/ball_joint.py for why.
+    "socket_plug_clearance": 0.30,         # RADIAL, ball passing down the bore.
+                                           # TUNE AFTER FIRST PRINT.
+    "socket_plug_pitch": 2.0,              # plug thread pitch
+    "socket_plug_thread_length": 10.0,     # engaged length
+    "socket_plug_thread_gap": 1.0,         # run-out above and below the plug thread
+    "socket_base_wall": 3.0,               # wall between plug thread and collar thread
+    "socket_neck_length": 4.5,             # plain section below the fingers, so the
+                                           # collar has room to advance and clamp
+    "plug_seat_depth": 6.2,                # how far below the ball centre the plug's
+                                           # spherical seat begins. Lower = thicker
+                                           # plug rim, but less of the ball supported.
+    "plug_body_clearance": 0.5,            # shank radius below the bore. Needs to be a
+                                           # real step, not a whisker: a shank within
+                                           # 0.1 mm of the thread's own core radius is
+                                           # near-tangent and the fuse fails.
+    "plug_flange_thickness": 4.0,          # shoulder that bottoms on the socket
+    "plug_hex_flats": 0.0,                 # 0 = none; the tenon is the wrench
     "socket_mouth_extra_angle": 0.0,       # opens the mouth beyond the minimum needed.
                                            # >0 : easier ball insertion, weaker capture.
-    "ball_joint_max_angle": 22.0,          # REQUESTED half-cone tilt range of the stem
+    # Raised from 22 deg once rear loading removed the insertion constraint.
+    # Opening the mouth used to cost assembly strain; now it only costs ball
+    # capture, and the plug holds the ball from below regardless.
+    "ball_joint_max_angle": 27.0,          # REQUESTED half-cone tilt range of the stem
 
     # ---- ball joint : threaded clamping collar ---------------------------
     "thread_pitch": 2.0,
@@ -124,9 +147,9 @@ PARAMS = {
     "thread_clearance": 0.20,              # RADIAL clearance cut into the collar.
                                            # TUNE THIS AFTER THE FIRST PRINT.
     "socket_thread_end_gap": 1.0,          # unthreaded run-out at the bottom
-    "socket_thread_top_gap": 1.0,          # unthreaded run-out below the fingers
+    "socket_thread_top_gap": 1.0,          # unthreaded run-out below the neck
     "collar_thread_bore_length": 11.0,     # threaded length inside the collar
-    "collar_cone_overshoot": 1.5,          # cone length beyond what is needed to close the
+    "collar_cone_overshoot": 1.0,          # cone length beyond what is needed to close the
                                            # clearance, so the collar cannot jam on the
                                            # finger tips before it has clamped
     "collar_wall_thickness": 4.0,
@@ -419,28 +442,66 @@ def derive(p):
     d["socket_tip_outer_radius"] = R0 - d["socket_top_z"] * tan_taper
     d["socket_tip_inner_radius"] = d["socket_top_z"] * tan_mouth
 
-    d["socket_base_bottom_z"] = -(d["cavity_radius"] + p["socket_floor_thickness"])
-    d["slot_root_z"] = -(d["cavity_radius"] + p["socket_slot_root_offset"])
+    d["slot_root_z"] = -p["socket_slot_root_depth"]
+
+    # ---- rear loading: bore, plug thread, base ----------------------------
+    # The ball now enters from below, so everything under the equator has to
+    # be wider than the ball. That single constraint sets the whole base.
+    d["plug_bore_radius"] = d["ball_radius"] + p["socket_plug_clearance"]
+    d["plug_thread_depth"] = p["socket_plug_pitch"] * p["thread_depth_ratio"]
+    d["plug_thread_major_radius"] = d["plug_bore_radius"] + d["plug_thread_depth"]
+    d["socket_base_outer_radius"] = (d["plug_thread_major_radius"]
+                                     + p["socket_base_wall"])
+    # Plain neck below the fingers: the collar advances into this space, so
+    # the base cannot widen until the collar has finished travelling.
+    d["socket_neck_bottom_z"] = -p["socket_neck_length"]
+    d["plug_thread_top_z"] = (d["slot_root_z"]
+                              - p["socket_slot_relief_diameter"] / 2.0
+                              - p["socket_plug_thread_gap"]
+                              - 0.7)
+    d["plug_thread_bottom_z"] = (d["plug_thread_top_z"]
+                                 - p["socket_plug_thread_length"])
+    d["socket_base_bottom_z"] = (d["plug_thread_bottom_z"]
+                                 - p["socket_plug_thread_gap"])
     d["socket_total_height"] = d["socket_top_z"] - d["socket_base_bottom_z"]
 
-    # Flexing length of one finger, measured to the point that actually has
-    # to open up (the mouth), not to the finger tip.
+    # Where the leg's tip block seats. The tenon now lives on the plug, so
+    # this is below the plug's flange rather than on the socket itself.
+    d["joint_mating_z"] = d["socket_base_bottom_z"] - p["plug_flange_thickness"]
+
+    # Plug: spherical seat starting plug_seat_depth below the ball centre.
+    d["plug_seat_rim_radius"] = math.sqrt(max(d["cavity_radius"] ** 2
+                                              - p["plug_seat_depth"] ** 2, 0.0))
+    d["plug_body_radius"] = d["plug_bore_radius"] - p["plug_body_clearance"]
+    d["plug_rim_wall"] = d["plug_body_radius"] - d["plug_seat_rim_radius"]
+    d["plug_total_length"] = (-p["plug_seat_depth"]) - d["joint_mating_z"]
+
+    # Flexing length of one finger, measured to the point that actually moves
+    # (the mouth), not to the finger tip.
     d["finger_lever_length"] = d["mouth_z"] - d["slot_root_z"]
 
-    # Cantilever surface strain at the slot root for a tip deflection equal
-    # to snap_in_deflection:  eps = 3 * t * delta / (2 * L^2)
-    d["finger_root_strain"] = (3.0 * p["socket_wall_thickness"] * d["snap_in_deflection"]
-                               / (2.0 * d["finger_lever_length"] ** 2))
+    def _strain(deflection):
+        """Cantilever surface strain at the slot root: 3*t*delta/(2*L^2)."""
+        return (3.0 * p["socket_wall_thickness"] * deflection
+                / (2.0 * d["finger_lever_length"] ** 2))
+
+    # With rear loading the ball never passes the mouth, so the fingers only
+    # ever flex by the clamping clearance. The insertion figure is kept as a
+    # reference: it is what broke the first printed socket.
+    d["finger_clamp_strain"] = _strain(p["socket_clearance"])
+    d["finger_insertion_strain"] = 0.0
+    d["finger_strain_if_pressed_in"] = _strain(d["snap_in_deflection"])
+    d["finger_root_strain"] = d["finger_clamp_strain"]
 
     # ---- thread -----------------------------------------------------------
     h = p["thread_pitch"] * p["thread_depth_ratio"]
     d["thread_depth"] = h
     # The socket base cylinder IS the thread core, so the major diameter
     # follows the wall thickness. This is why it is derived, not set.
-    d["thread_major_radius"] = R0 + h
+    d["thread_major_radius"] = d["socket_base_outer_radius"] + h
     d["thread_diameter"] = 2.0 * d["thread_major_radius"]
     d["thread_bottom_z"] = d["socket_base_bottom_z"] + p["socket_thread_end_gap"]
-    d["thread_top_z"] = -p["socket_thread_top_gap"]
+    d["thread_top_z"] = d["socket_neck_bottom_z"] - p["socket_thread_top_gap"]
     d["thread_length"] = d["thread_top_z"] - d["thread_bottom_z"]
     d["thread_turns"] = d["thread_length"] / p["thread_pitch"]
 
@@ -457,7 +518,7 @@ def derive(p):
     # ratio tan(taper) is what makes the friction adjustable by hand.
     d["collar_advance_to_close"] = p["socket_clearance"] / tan_taper
 
-    d["collar_bottom_z"] = -p["collar_thread_bore_length"]
+    d["collar_bottom_z"] = d["thread_top_z"] - p["collar_thread_bore_length"]
 
     # The cone must stay longer than the fingers over the whole tightening
     # stroke, otherwise the collar's top rim lands on the finger tips and the

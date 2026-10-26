@@ -202,35 +202,25 @@ def check_ball_joint(rep, p, d):
               lo=p["warn_min_capture_ratio"], hi=p["warn_max_capture_ratio"],
               note="mouth_radius/ball_radius; <1 means the ball is trapped")
 
-    sec2 = "D. BALL JOINT - ASSEMBLY STRAIN (most likely failure mode)"
-    rep.add(sec2, "finger spread to admit ball",
-            "%.3f mm" % d["snap_in_deflection"], INFO,
-            "each finger must bend out by this much, once")
+    sec2 = "D. BALL JOINT - ASSEMBLY AND CLAMPING STRAIN"
+    rep.add(sec2, "assembly method", "rear loading", INFO,
+            "ball drops in through the open bottom; a threaded plug closes it")
+    rep.limit(sec2, "ball clearance through the bore",
+              d["plug_bore_radius"] - d["ball_radius"], lo=0.15,
+              note="radial; the ball must pass the bore to be fitted at all")
+    rep.add(sec2, "finger spread needed to assemble", "0.000 mm", PASS,
+            "the ball never passes the mouth, so the fingers do not flex to "
+            "fit it. This is the step that shattered the first socket")
+    rep.add(sec2, "strain if it were pressed in instead",
+            "%.4f" % d["finger_strain_if_pressed_in"], INFO,
+            "for reference: the printed socket broke at 0.0276 by this "
+            "measure, so the material fails somewhere below that")
     rep.add(sec2, "finger flexing length",
-            "%.2f mm" % d["finger_lever_length"], INFO,
-            "slot root to mouth")
-    st = rep.limit(sec2, "finger root bending strain", d["finger_root_strain"],
-                   hi=p["warn_finger_strain"], fmt="%.4f",
-                   note="limit <= %.4f; rigid Eden resins fail near 0.03-0.04"
-                        % p["warn_finger_strain"])
-    if st == WARN:
-        extra, res = solve_mouth_angle_for_strain(p, p["warn_finger_strain"])
-        if extra is None:
-            rep.add(sec2, "-> no mouth angle meets the strain limit", "", INFO,
-                    "change socket_wall_thickness, ball_diameter or "
-                    "socket_slot_root_offset instead")
-        else:
-            rep.add(sec2, "-> socket_mouth_extra_angle that would meet it",
-                    "%.2f deg" % extra, INFO,
-                    "gives strain %.4f, capture ratio %.3f, and RAISES tilt "
-                    "to %.1f deg" % (res["finger_root_strain"],
-                                     res["capture_ratio"], res["achieved_tilt"]))
-            if res["capture_ratio"] > p["warn_max_capture_ratio"]:
-                rep.add(sec2, "   but capture would then be marginal",
-                        "%.3f" % res["capture_ratio"], WARN,
-                        "above warn_max_capture_ratio %.2f: the mouth would "
-                        "barely hold the ball"
-                        % p["warn_max_capture_ratio"])
+            "%.2f mm" % d["finger_lever_length"], INFO, "slot root to mouth")
+    rep.limit(sec2, "finger root strain when clamping",
+              d["finger_clamp_strain"], hi=p["warn_finger_strain"], fmt="%.4f",
+              note="limit <= %.4f; the fingers now only close by the ball "
+                   "clearance" % p["warn_finger_strain"])
 
     sec3 = "E. BALL JOINT - ANGULAR RANGE"
     rep.add(sec3, "requested tilt (half-cone)",
@@ -298,11 +288,17 @@ def check_thread(rep, p, d):
 
 def check_geometry_consistency(rep, p, d):
     sec = "H. INTERNAL CONSISTENCY"
-    floor = (d["slot_root_z"] - p["socket_slot_relief_diameter"] / 2.0
-             - d["socket_base_bottom_z"])
-    rep.limit(sec, "floor under slot relief", floor, lo=p["warn_min_wall"],
-              note="raise socket_floor_thickness or lower "
-                   "socket_slot_root_offset")
+    gap = (d["slot_root_z"] - p["socket_slot_relief_diameter"] / 2.0
+           - d["plug_thread_top_z"])
+    rep.limit(sec, "slot relief clear of the plug thread", gap, lo=1.0,
+              note="the slots must stop above the internal thread, or the "
+                   "plug would screw into a split bore")
+    rep.limit(sec, "neck wall at the ball bore",
+              d["finger_root_outer_radius"] - d["plug_bore_radius"], lo=2.5,
+              note="between the ball's through bore and the outside")
+    rep.limit(sec, "wall around the plug thread",
+              d["socket_base_outer_radius"] - d["plug_thread_major_radius"],
+              lo=2.5, note="between the plug thread and the collar thread")
     rep.limit(sec, "mouth radius vs ball radius",
               d["ball_radius"] - d["mouth_radius"], lo=0.05,
               note="must be > 0 or the ball falls out of the socket")
@@ -575,6 +571,34 @@ def check_modules(rep, p, d):
 
 
 
+def check_base_plug(rep, p, d):
+    sec = "Y. BASE PLUG (rear loading)"
+    rep.add(sec, "plug thread", "M%.1f x %.1f"
+            % (2 * d["plug_thread_major_radius"], p["socket_plug_pitch"]), INFO,
+            "internal in the socket, external on the plug, same generator")
+    rep.limit(sec, "engaged turns",
+              p["socket_plug_thread_length"] / p["socket_plug_pitch"], lo=4.0,
+              fmt="%.2f")
+    rep.limit(sec, "plug rim wall at the seat", d["plug_rim_wall"], lo=1.5,
+              note="between the spherical seat and the shank; lower "
+                   "plug_seat_depth thins it")
+    rep.limit(sec, "shank step off the thread core",
+              p["plug_body_clearance"], lo=0.3,
+              note="a shank within a whisker of the thread's core radius is "
+                   "near-tangent and the fuse fails outright")
+    rep.add(sec, "ball support", "from %.1f mm below centre"
+            % p["plug_seat_depth"], INFO,
+            "the seat picks the ball up at %.0f deg below the equator"
+            % math.degrees(math.asin(min(p["plug_seat_depth"]
+                                         / d["cavity_radius"], 1.0))))
+    rep.add(sec, "tenon carried by", "the plug", INFO,
+            "leg load passes through the plug thread, which is far stronger "
+            "than the tenon it feeds")
+    rep.add(sec, "plug anti-rotation", "friction only", TODO,
+            "the tenon doubles as the wrench; if the plug backs off in use, "
+            "add thread locking or a detent")
+
+
 def check_pivot(rep, p, d, info):
     sec = "V. HOW THE INSTRUMENT SWINGS"
     mode = p.get("pivot_mode", "ball_centre")
@@ -715,6 +739,7 @@ def run(p, d, shapes, placed, warnings, path=None, measure_gaps=True,
     check_hinge(rep, p, d)
     check_printing(rep, p, d, shapes)
     check_modules(rep, p, d)
+    check_base_plug(rep, p, d)
     check_marker_fit(rep, p, d)
     check_ear_piece_nozzle(rep, p, d)
     check_not_yet_built(rep, p)
