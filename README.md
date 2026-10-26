@@ -19,13 +19,20 @@ define the perpendicular bisector of the ear-to-ear line.
 > directly, the specified marker (Ø9 × 167 mm) is modelled, and the swing
 > geometry has been reworked around the pivot the instrument actually turns
 > on. See "How it swings" below — that last one changed the working radius.
+>
+> **Revised 2026-10-26** after the first test print. The socket shattered
+> while the ball was being pressed in — all four fingers off at the slot
+> roots, exactly where the validation had predicted 2.8% strain against a
+> 1.5% limit. The ball now loads from the rear through an open bottom
+> closed by a threaded plug, so the press-in step is gone and assembly
+> strain is zero. See "Loading the ball" below.
 
 ## Status — all mechanisms built
 
 | Phase | Component | State |
 |------|-----------|-------|
 | 1 | Parameter system, reference frame, CT measurement | built |
-| 2 | Ball joint: stud, split socket, clamping collar | built |
+| 2 | Ball joint: stud, split socket, base plug, clamping collar | built |
 | 3 | Main hinge, friction lock, knob | built |
 | 4 | Ear piece with Ø15 stopper | built |
 | 5 | Main legs (flat arcs, one design printed twice) | built |
@@ -34,8 +41,8 @@ define the perpendicular bisector of the ear-to-ear line.
 | 8 | Validation | 68 pass, 1 warn, 0 fail |
 | 9 | STEP + STL export | built |
 
-Nine components, all verified as single valid closed solids with watertight,
-non-self-intersecting meshes.
+Ten components, all verified as single valid closed solids with watertight,
+non-self-intersecting meshes. Validation: 88 pass, 0 warn, 0 fail.
 
 ## Requirements
 
@@ -191,6 +198,44 @@ Three concepts were considered:
    is what makes friction finely adjustable by hand and lets the joint be
    loosened, repositioned and retightened.
 
+### Loading the ball — why the bottom opens
+
+The first printed socket shattered. All four fingers broke clean off at the
+slot roots while the ball was being pressed in through the mouth, in an
+acrylic UV resin (ProJet 2500, not the Eden the design had assumed). The
+validation had predicted 2.8% bending strain at exactly that location
+against a 1.5% limit, and had flagged it as the one thing to settle with a
+test print before anything else was committed.
+
+Widening the mouth would have cut the strain to about 1.5%. That was the
+prepared fix, and it was rejected: the test established only that the
+material fails somewhere **below** 2.8%, not where, so a 1.5% design would
+have had unknown margin — and opening the mouth costs ball retention.
+
+So the press-in step was removed instead. Everything below the equator is
+now wider than the ball (Ø18.6 bore against an Ø18.0 ball), the ball drops
+in from underneath, and a threaded plug (M20.8 × 2.0, five turns engaged)
+closes the bottom and carries the lower half of the spherical seat.
+
+| | Before | After |
+|---|---:|---:|
+| Finger spread to assemble | 1.45 mm | **0 mm** |
+| Strain at the slot root, assembling | 2.8% (broke) | **0%** |
+| Strain at the slot root, clamping | — | 0.96% |
+| Ball capture ratio | 0.84 | 0.89 |
+| Socket across flats | 27.7 mm | 29.0 mm |
+
+Nothing in the answer now depends on a number nobody has measured.
+
+Two things follow from it. The mouth can stay narrow, so retention improved
+rather than degraded. And with insertion no longer constraining the mouth
+angle, the tilt range went from 22° to **27°** — the stroke needs 19.3°, so
+the margin went from 2.7° to 7.7°.
+
+The plug also carries the tenon into the leg. That puts the leg's load
+through the plug thread, which is far stronger than the 12 × 6 mm tenon it
+feeds, and the tenon doubles as the wrench for screwing the plug home.
+
 ### Main hinge — friction clamp, deliberately not toothed
 
 A toothed lock is positive, which is the obvious answer to "must not drift".
@@ -334,14 +379,15 @@ along Z.
 | Leg | **12.00 mm** | 249.7 × 71.5 mm | 2 |
 | HingeWasher | 2.00 mm | 44.0 × 44.0 mm | 1 |
 | HingeKnob | 14.00 mm | 43.3 × 43.3 mm | 1 |
-| EarPiece | 14.98 mm | 24.0 × 15.0 mm | 1 |
-| BallStud | 18.00 mm | 42.5 × 18.0 mm | 1 |
+| EarPiece | 15.00 mm | 23.0 × 15.0 mm | 1 |
 | MarkerHolder | 17.60 mm | 56.0 × 43.8 mm | 1 |
+| BallStud | 18.00 mm | 42.5 × 18.0 mm | 1 |
 | HingeBolt | 21.29 mm | 43.0 × 21.3 mm | 1 |
-| Collar | 22.48 mm | 35.7 × 35.4 mm | 1 |
-| Socket | 27.63 mm | 43.9 × 27.7 mm | 1 |
+| Collar | 26.23 mm | 37.0 × 36.7 mm | 1 |
+| BasePlug | 26.80 mm | 40.8 × 26.8 mm | 1 |
+| Socket | 27.35 mm | 29.0 × 29.0 mm | 1 |
 
-Printed together the build height is set by the Socket at **27.6 mm**.
+Printed together the build height is set by the Socket at **27.4 mm**.
 Printing the two legs on their own costs only 12 mm.
 
 **Do not assume printed threads work first time.** Every critical fit is a
@@ -380,22 +426,17 @@ accuracy.
 
 ## Open issues
 
-### 1. Ball insertion strain — the one open mechanical risk
+### 1. Ball insertion strain — RESOLVED 2026-10-26
 
-Validation reports **WARN: finger root bending strain 0.0276** against a
-0.015 limit. Getting the ball past the socket mouth needs each finger to
-bend out 1.45 mm once, about 2.8% surface strain at the slot root. Rigid
-Eden photopolymers fail in flexure near 3–4%, so the margin is thin.
+This was the open risk, and it failed in test exactly as predicted. It is
+closed by rear loading (above): assembly strain is now zero and the
+validation warning is gone. What remains is to confirm on a second print
+that the ball does drop in by hand and the plug screws home.
 
-The report computes the exact `socket_mouth_extra_angle` that would bring it
-inside the limit (about 9.6°). That was **not** made the default: it widens
-the mouth from 0.84 to 0.93 of the ball radius, and an ear piece that drops
-out in use is worse than a socket that needs careful assembly. Applying it
-also raises the achievable tilt to 31.6°, which then makes the stem foul the
-collar rim — validation catches that too.
+### 1b. Plug anti-rotation — open
 
-**Settle it with a test print of the socket alone** before anything else is
-committed.
+The plug is held by thread friction alone. If it backs off in use, it needs
+thread locking or a detent. Nothing has been tested yet.
 
 ### 2. Still needed from the client
 
