@@ -14,12 +14,25 @@ define the perpendicular bisector of the ear-to-ear line.
 > insertion geometry is an engineering placeholder and needs clinical
 > sign-off before anything is put near a person.**
 
+> **Revised 2026-09-18** after the client's answers: the ear piece now
+> carries a commercial silicone eartip instead of contacting the ear
+> directly, the specified marker (Ø9 × 167 mm) is modelled, and the swing
+> geometry has been reworked around the pivot the instrument actually turns
+> on. See "How it swings" below — that last one changed the working radius.
+>
+> **Revised 2026-10-26** after the first test print. The socket shattered
+> while the ball was being pressed in — all four fingers off at the slot
+> roots, exactly where the validation had predicted 2.8% strain against a
+> 1.5% limit. The ball now loads from the rear through an open bottom
+> closed by a threaded plug, so the press-in step is gone and assembly
+> strain is zero. See "Loading the ball" below.
+
 ## Status — all mechanisms built
 
 | Phase | Component | State |
 |------|-----------|-------|
 | 1 | Parameter system, reference frame, CT measurement | built |
-| 2 | Ball joint: stud, split socket, clamping collar | built |
+| 2 | Ball joint: stud, split socket, base plug, clamping collar | built |
 | 3 | Main hinge, friction lock, knob | built |
 | 4 | Ear piece with Ø15 stopper | built |
 | 5 | Main legs (flat arcs, one design printed twice) | built |
@@ -28,8 +41,8 @@ define the perpendicular bisector of the ear-to-ear line.
 | 8 | Validation | 68 pass, 1 warn, 0 fail |
 | 9 | STEP + STL export | built |
 
-Nine components, all verified as single valid closed solids with watertight,
-non-self-intersecting meshes.
+Ten components, all verified as single valid closed solids with watertight,
+non-self-intersecting meshes. Validation: 88 pass, 0 warn, 0 fail.
 
 ## Requirements
 
@@ -149,14 +162,14 @@ equidistant from them lies on the plane x = 0. **The midline construction is
 exact and does not depend on the head model at all.** The reference head only
 answers *where on the scalp* the crossings fall.
 
-At the default radius of 130 mm they fall at:
+At the default radius of 160 mm about the ball centres they fall at:
 
-| Crossing | Position | Distance from each ear |
+| Crossing | Position | Distance from each pivot |
 |---|---|---|
-| Anterior | (0, 90.9, 58.5) | 130.000 mm |
-| Posterior | (0, −99.2, 43.2) | 130.000 mm |
+| Anterior | (0, 91.0, 56.9) | 160.000 mm |
+| Posterior | (0, −98.9, 41.8) | 160.000 mm |
 
-giving a 190.7 mm baseline for the midline. Construction points in the
+giving a 190.5 mm baseline for the midline. Construction points in the
 document: `LEFT_EAR_REFERENCE`, `RIGHT_EAR_REFERENCE`, `HEAD_CENTER`,
 `HEAD_TOP`, `MARKER_TIP`, `MARKER_TIP_BUILT`, the two radius lines, the ear
 axis, the midsagittal plane and both scalp arcs.
@@ -184,6 +197,44 @@ Three concepts were considered:
    closes the fingers by *x*·tan(taper) — about 10:1 at 6°. That reduction
    is what makes friction finely adjustable by hand and lets the joint be
    loosened, repositioned and retightened.
+
+### Loading the ball — why the bottom opens
+
+The first printed socket shattered. All four fingers broke clean off at the
+slot roots while the ball was being pressed in through the mouth, in an
+acrylic UV resin (ProJet 2500, not the Eden the design had assumed). The
+validation had predicted 2.8% bending strain at exactly that location
+against a 1.5% limit, and had flagged it as the one thing to settle with a
+test print before anything else was committed.
+
+Widening the mouth would have cut the strain to about 1.5%. That was the
+prepared fix, and it was rejected: the test established only that the
+material fails somewhere **below** 2.8%, not where, so a 1.5% design would
+have had unknown margin — and opening the mouth costs ball retention.
+
+So the press-in step was removed instead. Everything below the equator is
+now wider than the ball (Ø18.6 bore against an Ø18.0 ball), the ball drops
+in from underneath, and a threaded plug (M20.8 × 2.0, five turns engaged)
+closes the bottom and carries the lower half of the spherical seat.
+
+| | Before | After |
+|---|---:|---:|
+| Finger spread to assemble | 1.45 mm | **0 mm** |
+| Strain at the slot root, assembling | 2.8% (broke) | **0%** |
+| Strain at the slot root, clamping | — | 0.96% |
+| Ball capture ratio | 0.84 | 0.89 |
+| Socket across flats | 27.7 mm | 29.0 mm |
+
+Nothing in the answer now depends on a number nobody has measured.
+
+Two things follow from it. The mouth can stay narrow, so retention improved
+rather than degraded. And with insertion no longer constraining the mouth
+angle, the tilt range went from 22° to **27°** — the stroke needs 19.3°, so
+the margin went from 2.7° to 7.7°.
+
+The plug also carries the tenon into the leg. That puts the leg's load
+through the plug thread, which is far stronger than the 12 × 6 mm tenon it
+feeds, and the tenon doubles as the wrench for screwing the plug home.
 
 ### Main hinge — friction clamp, deliberately not toothed
 
@@ -238,20 +289,84 @@ The ball joint and the marker holder share an identical tenon
 Print a second ear module and the instrument becomes symmetric; print a
 second marker holder and it becomes a plain caliper.
 
-### Ear piece
+### Ear piece — a carrier for a silicone eartip
 
-Tapered cone with a Ø15 mm stopper 7 mm back from the tip (the Ø15 figure is
-the client's; everything else is a placeholder). The tip is a sphere, not a
-flat face, and every exposed edge is filleted, so there is no sharp rim
-anywhere on the inserted length.
+Revised at the client's request: the printed resin no longer touches the
+ear. The tip is an earphone-style nozzle — Ø4.5 shaft, Ø5.5 retaining bead,
+6.0 mm long, all client-stated — and a commercial silicone eartip goes over
+it. The Ø15 stopper is retained and now does double duty: it still limits
+insertion depth, and it is the wall the silicone base seats against.
 
-### Marker holder
+The bead gives 0.5 mm of interference on the radius, reached over a 0.6 mm
+ramp, so the eartip can be pushed on by hand and will not fall off.
 
-Split clamp around a plain bore, so a commercial fine-tip marker drops in,
-sets to any depth and swaps when it dries. Every other thread on the device
-is printed and coarse; this one is a short M4 in a thin lug, tightened
-repeatedly, so it takes a **bought-in steel screw and a captured hex nut**
-instead.
+**The nozzle root is deliberately left sharp.** A fillet there would hold the
+silicone base off the flange, and the flange is exactly what the client
+wants it to seat against. Every other exposed edge is broken.
+
+### Marker holder — the pen's length drives the layout
+
+The specified pen (AS ONE ProShare, Ø9 × 167 mm) will not fit inside a 34 mm
+holder, so the bore runs straight through and about 108 mm of pen trails out
+of the back. In line with the tenon that tail would drive straight into the
+leg, so the barrel is offset 18 mm sideways and the pen passes alongside the
+tip block with 2.25 mm to spare. The offset is in the plane of the leg's
+arc, so the compass stays a planar linkage.
+
+Every other thread on the device is printed and coarse; the clamp screw is a
+short M4 in a thin lug, tightened repeatedly, so it takes a **bought-in steel
+screw and a captured hex nut** instead.
+
+`marker_tip_offset` is a user **setting**, not a fixed feature — the clamp
+grips anywhere along the barrel. The same value must be used for both arcs
+or the radii differ.
+
+## How it swings, and where the radius is measured from
+
+The client asked whether the long stroke from forehead to occiput is carried
+by the ball joint's **spin**, with the tilt only taking up the difference
+between the ear canal's direction and the leg's. It is — but working that
+out surfaced something that changed the numbers.
+
+**The instrument does not pivot at the ear canal.** With the ball joint left
+at light friction, the ear piece stays put in the ear and the compass swings
+about the **ball centre**, which sits 46.5 mm further out along the canal
+axis. The ball centre belongs to both bodies, so it is fixed relative to both
+— that is what makes it the pivot.
+
+This matters because the arc radius has to be measured from the pivot:
+
+| Pivot mode | Pivot separation (half) | Usable radius |
+|---|---:|---|
+| `ear_point` — joint locked | 72.2 mm | 96.2 – 153.6 mm |
+| `ball_centre` — joint free | 118.7 mm | **134.6 – 180.2 mm** |
+
+At the originally assumed 130 mm the arcs **never reach the midline** in
+`ball_centre` mode. 160 mm about the ball centre puts the crossings within
+2 mm of where 130 mm ear-to-marker would have — same marking points, correct
+reference — so that is the default.
+
+The construction stays exact in either mode, because both pivots remain
+symmetric about x = 0. That symmetry now depends on **the ear pieces being
+inserted equally on both sides**, which is a new error source worth
+controlling in use.
+
+### What the joint actually has to do
+
+Sampled at 38 positions along the stroke, landing the instrument on its pivot
+and marker tip and choosing the roll that minimises the lean:
+
+| | |
+|---|---|
+| Spin swept by the stroke | **124°** (unlimited, so not a constraint) |
+| Tilt demanded | **1.2° – 14.6°** |
+| Tilt available | 22° |
+| Margin | 7.4° |
+
+So the client's reading is right: spin carries the arc, and the tilt only
+absorbs the changing angle between the canal and the leg. Clearance to the
+head stays above 12.3 mm across the whole stroke, including the pen's
+trailing 108 mm.
 
 ## Printing (Stratasys Eden 260V, inkjet, soluble support)
 
@@ -264,14 +379,15 @@ along Z.
 | Leg | **12.00 mm** | 249.7 × 71.5 mm | 2 |
 | HingeWasher | 2.00 mm | 44.0 × 44.0 mm | 1 |
 | HingeKnob | 14.00 mm | 43.3 × 43.3 mm | 1 |
-| EarPiece | 15.00 mm | 24.0 × 15.0 mm | 1 |
+| EarPiece | 15.00 mm | 23.0 × 15.0 mm | 1 |
+| MarkerHolder | 17.60 mm | 56.0 × 43.8 mm | 1 |
 | BallStud | 18.00 mm | 42.5 × 18.0 mm | 1 |
-| MarkerHolder | 18.50 mm | 56.0 × 29.5 mm | 1 |
 | HingeBolt | 21.29 mm | 43.0 × 21.3 mm | 1 |
-| Collar | 22.48 mm | 35.7 × 35.4 mm | 1 |
-| Socket | 27.63 mm | 43.9 × 27.7 mm | 1 |
+| Collar | 26.23 mm | 37.0 × 36.7 mm | 1 |
+| BasePlug | 26.80 mm | 40.8 × 26.8 mm | 1 |
+| Socket | 27.35 mm | 29.0 × 29.0 mm | 1 |
 
-Printed together the build height is set by the Socket at **27.6 mm**.
+Printed together the build height is set by the Socket at **27.4 mm**.
 Printing the two legs on their own costs only 12 mm.
 
 **Do not assume printed threads work first time.** Every critical fit is a
@@ -310,22 +426,17 @@ accuracy.
 
 ## Open issues
 
-### 1. Ball insertion strain — the one open mechanical risk
+### 1. Ball insertion strain — RESOLVED 2026-10-26
 
-Validation reports **WARN: finger root bending strain 0.0276** against a
-0.015 limit. Getting the ball past the socket mouth needs each finger to
-bend out 1.45 mm once, about 2.8% surface strain at the slot root. Rigid
-Eden photopolymers fail in flexure near 3–4%, so the margin is thin.
+This was the open risk, and it failed in test exactly as predicted. It is
+closed by rear loading (above): assembly strain is now zero and the
+validation warning is gone. What remains is to confirm on a second print
+that the ball does drop in by hand and the plug screws home.
 
-The report computes the exact `socket_mouth_extra_angle` that would bring it
-inside the limit (about 9.6°). That was **not** made the default: it widens
-the mouth from 0.84 to 0.93 of the ball radius, and an ear piece that drops
-out in use is worse than a socket that needs careful assembly. Applying it
-also raises the achievable tilt to 31.6°, which then makes the stem foul the
-collar rim — validation catches that too.
+### 1b. Plug anti-rotation — open
 
-**Settle it with a test print of the socket alone** before anything else is
-committed.
+The plug is held by thread friction alone. If it backs off in use, it needs
+thread locking or a detent. Nothing has been tested yet.
 
 ### 2. Still needed from the client
 

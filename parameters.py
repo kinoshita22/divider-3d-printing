@@ -58,7 +58,26 @@ PARAMS = {
     "ref_scalp_thickness": 6.0,            # PROVISIONAL  bone -> skin offset
     "ref_ear_depth_below_vertex": 130.0,   # PROVISIONAL  INPUT to the CT measurement,
                                            # not measured from it. Confirm clinically.
-    "ref_arc_radius": 130.0,               # PROVISIONAL  compass opening used for both arcs
+    # Radius of the struck arc, measured FROM THE PIVOT (see pivot_mode).
+    # 160 mm about the ball centre puts the crossings within ~2 mm of where
+    # the client's assumed 130 mm would, measured ear-to-marker: same marking
+    # points, different reference. Usable band in this mode is 134.6-180.2 mm.
+    "ref_arc_radius": 160.0,               # PROVISIONAL
+
+    # ---- how the instrument actually swings -------------------------------
+    # Which point the instrument turns about while an arc is being drawn.
+    #   "ball_centre" : ball joint left at light friction. The ear piece stays
+    #                   put in the ear and the compass spins about the ball.
+    #                   Comfortable, and what the client describes.
+    #   "ear_point"   : ball joint locked. The whole instrument pivots at the
+    #                   ear canal, so the ear piece twists in the ear.
+    # The bisector construction holds either way, because both pivots are
+    # symmetric about the midline - but the two modes need DIFFERENT radii.
+    "pivot_mode": "ball_centre",
+    # Direction of the ear canal, as angles off pure lateral. Both zero means
+    # the canal axis is horizontal and points straight at the opposite ear.
+    "ref_ear_axis_anterior_angle": 0.0,    # PROVISIONAL  degrees towards the face
+    "ref_ear_axis_superior_angle": 0.0,    # PROVISIONAL  degrees towards the vertex
     "ref_build_head_solid": True,          # draw the reference ellipsoid
     "ref_build_arcs": True,                # draw the two scalp arcs
 
@@ -83,16 +102,39 @@ PARAMS = {
     "socket_wall_thickness": 3.5,
     "socket_split_width": 1.2,             # slot width
     "socket_split_count": 4,               # number of clamping fingers
-    "socket_slot_root_offset": 2.0,        # slot root, measured below the cavity bottom
+    "socket_slot_root_depth": 7.0,         # slot root, measured BELOW the ball centre
     "socket_slot_relief_diameter": 2.6,    # keyhole relief at each slot root
     "socket_slot_inner_ratio": 0.55,       # slot inner radius, as a fraction of cavity_radius
     "socket_taper_angle": 6.0,             # half-angle of the external collet cone
     "socket_min_tip_wall": 1.2,            # wall left at the very tip of a finger
-    "socket_floor_thickness": 5.0,         # material below the cavity. Must leave a
-                                           # floor under the slot relief - see validation.
+
+    # ---- ball joint : rear loading (REVISED 2026-10-26) -------------------
+    # The ball is no longer pressed in through the mouth. The socket's bottom
+    # is open, the ball drops in from below, and a threaded plug closes it.
+    # See geometry/ball_joint.py for why.
+    "socket_plug_clearance": 0.30,         # RADIAL, ball passing down the bore.
+                                           # TUNE AFTER FIRST PRINT.
+    "socket_plug_pitch": 2.0,              # plug thread pitch
+    "socket_plug_thread_length": 10.0,     # engaged length
+    "socket_plug_thread_gap": 1.0,         # run-out above and below the plug thread
+    "socket_base_wall": 3.0,               # wall between plug thread and collar thread
+    "socket_neck_length": 4.5,             # plain section below the fingers, so the
+                                           # collar has room to advance and clamp
+    "plug_seat_depth": 6.2,                # how far below the ball centre the plug's
+                                           # spherical seat begins. Lower = thicker
+                                           # plug rim, but less of the ball supported.
+    "plug_body_clearance": 0.5,            # shank radius below the bore. Needs to be a
+                                           # real step, not a whisker: a shank within
+                                           # 0.1 mm of the thread's own core radius is
+                                           # near-tangent and the fuse fails.
+    "plug_flange_thickness": 4.0,          # shoulder that bottoms on the socket
+    "plug_hex_flats": 0.0,                 # 0 = none; the tenon is the wrench
     "socket_mouth_extra_angle": 0.0,       # opens the mouth beyond the minimum needed.
                                            # >0 : easier ball insertion, weaker capture.
-    "ball_joint_max_angle": 22.0,          # REQUESTED half-cone tilt range of the stem
+    # Raised from 22 deg once rear loading removed the insertion constraint.
+    # Opening the mouth used to cost assembly strain; now it only costs ball
+    # capture, and the plug holds the ball from below regardless.
+    "ball_joint_max_angle": 27.0,          # REQUESTED half-cone tilt range of the stem
 
     # ---- ball joint : threaded clamping collar ---------------------------
     "thread_pitch": 2.0,
@@ -105,9 +147,9 @@ PARAMS = {
     "thread_clearance": 0.20,              # RADIAL clearance cut into the collar.
                                            # TUNE THIS AFTER THE FIRST PRINT.
     "socket_thread_end_gap": 1.0,          # unthreaded run-out at the bottom
-    "socket_thread_top_gap": 1.0,          # unthreaded run-out below the fingers
+    "socket_thread_top_gap": 1.0,          # unthreaded run-out below the neck
     "collar_thread_bore_length": 11.0,     # threaded length inside the collar
-    "collar_cone_overshoot": 1.5,          # cone length beyond what is needed to close the
+    "collar_cone_overshoot": 1.0,          # cone length beyond what is needed to close the
                                            # clearance, so the collar cannot jam on the
                                            # finger tips before it has clamped
     "collar_wall_thickness": 4.0,
@@ -156,12 +198,18 @@ PARAMS = {
     # ======================================================================
 
     # ---- ear piece (PHASE 4) ---------------------------------------------
-    # Client-stated: smooth tapered cone, stopper flange of about 15 mm
-    # diameter a few millimetres back from the tip.
-    # NONE OF THIS IS CLINICALLY VALIDATED.
-    "earpiece_tip_diameter": 6.0,          # PROVISIONAL - NOT clinically validated
-    "earpiece_taper_angle": 11.0,          # PROVISIONAL - half angle of the cone
-    "earpiece_stopper_offset": 7.0,        # PROVISIONAL - tip to stopper ("a few mm")
+    # REVISED at the client's request (2026-09-18): the printed resin no
+    # longer contacts the ear. The tip is now an earphone-style nozzle that
+    # carries a commercial silicone eartip (standard size), and the Ø15
+    # stopper is retained to act as the wall the silicone base seats against.
+    # The three nozzle figures below are CLIENT-STATED.
+    "earpiece_nozzle_diameter": 4.5,       # CLIENT-STATED  shaft the eartip grips
+    "earpiece_nozzle_lip_diameter": 5.5,   # CLIENT-STATED  retaining bead, max dia at the tip
+    "earpiece_nozzle_length": 6.0,         # CLIENT-STATED  stopper face to tip
+    "earpiece_nozzle_lip_length": 0.5,     # PROVISIONAL  axial length of the bead crest
+    "earpiece_nozzle_lip_ramp": 0.6,       # PROVISIONAL  lead-in ramp onto the bead
+    "earpiece_nozzle_tip_chamfer": 0.5,    # PROVISIONAL  eases the eartip on
+    "earpiece_nozzle_tip_diameter": 3.8,   # PROVISIONAL  flat left at the very tip
     "earpiece_stopper_diameter": 15.0,     # client-stated nominal
     "earpiece_stopper_thickness": 3.0,     # PROVISIONAL
     "earpiece_body_length": 14.0,          # PROVISIONAL  stopper -> stud interface
@@ -218,9 +266,18 @@ PARAMS = {
 
     # ---- marker holder (PHASE 6) -----------------------------------------
     # Split clamp so the marker can be swapped and the bore adjusted.
-    "marker_diameter": 10.0,               # PROVISIONAL - NO MARKER SPECIFIED YET
+    # Marker specified by the client 2026-09-18:
+    #   AS ONE ProShare skin marker, Ø9 mm barrel x 167 mm long.
+    # 167 mm will not fit inside a holder, so the bore is a THROUGH hole and
+    # the tail trails back past the leg - which is why the barrel is offset
+    # from the tenon. See geometry/marker_holder.py.
+    "marker_diameter": 9.0,                # CLIENT-STATED  barrel diameter
+    "marker_length": 167.0,                # CLIENT-STATED  overall pen length
     "marker_clearance": 0.25,              # TUNE AFTER FIRST PRINT
-    "marker_holder_length": 34.0,          # PROVISIONAL
+    "marker_holder_length": 34.0,          # PROVISIONAL  clamped length
+    "marker_mount_offset": 18.0,           # barrel axis offset from the tenon, so the
+                                           # pen's tail clears the leg tip block
+    "marker_bridge_thickness": 12.0,       # arm joining the tenon to the barrel
     "marker_clamp_thickness": 4.0,         # PROVISIONAL  wall around the bore
     "marker_screw_diameter": 4.0,          # PROVISIONAL  clamp screw
     "marker_screw_pitch": 0.7,
@@ -230,7 +287,6 @@ PARAMS = {
     "marker_clamp_ear_height": 14.0,
     "marker_nut_across_flats": 7.0,        # M4 hex nut, captured in a pocket
     "marker_nut_thickness": 3.2,
-    "marker_holder_floor": 4.0,            # material behind the blind bore
     "marker_tip_offset": 25.0,             # PROVISIONAL  bore end -> pen tip
 }
 
@@ -258,6 +314,8 @@ PROVISIONAL = {
     "ref_scalp_thickness": "Bone-to-skin offset added to the CT measurement. Assumed, not measured.",
     "ref_ear_depth_below_vertex": "INPUT to the CT measurement, not a result of it. The ear canal "
                                   "cannot be located reliably by geometry alone. Confirm clinically.",
+    "ref_ear_axis_anterior_angle": "Ear canal direction. Assumed straight lateral; not measured.",
+    "ref_ear_axis_superior_angle": "Ear canal direction. Assumed straight lateral; not measured.",
     "ref_arc_radius": "Working compass opening. Must be chosen by the clinical user.",
 
     # --- ball joint ---------------------------------------------------------
@@ -267,10 +325,14 @@ PROVISIONAL = {
     "ball_joint_max_angle": "Required tilt range has not been specified by the client.",
     "ball_stud_thread_diameter": "Ear-piece interface sized by feel, not by load.",
 
-    # --- ear piece: NONE of this is clinically validated ---------------------
-    "earpiece_tip_diameter": "NOT clinically validated. Insertion geometry is a placeholder.",
-    "earpiece_taper_angle": "NOT clinically validated.",
-    "earpiece_stopper_offset": "NOT clinically validated. This is what limits insertion depth.",
+    # --- ear piece ------------------------------------------------------------
+    # The nozzle diameters and length are CLIENT-STATED and so are not listed
+    # here. What remains provisional is the detail shape of the bead and the
+    # parts behind the stopper.
+    "earpiece_nozzle_lip_length": "Bead crest width. Chosen for printability, not from an eartip spec.",
+    "earpiece_nozzle_lip_ramp": "Lead-in ramp onto the bead. Chosen so the eartip can be pushed on by hand.",
+    "earpiece_nozzle_tip_chamfer": "Front chamfer. Chosen to ease the eartip on.",
+    "earpiece_nozzle_tip_diameter": "Flat left at the very tip. Not specified.",
     "earpiece_stopper_thickness": "Not specified; chosen for printed stiffness.",
     "earpiece_body_length": "Set by the thread socket depth, not by anatomy.",
     "earpiece_body_diameter": "Chosen to clear the stopper fillet.",
@@ -299,9 +361,9 @@ PROVISIONAL = {
     "connector_pin_diameter": "Fastener schedule not defined.",
 
     # --- marker holder ---------------------------------------------------------
-    "marker_diameter": "NO MARKER HAS BEEN SPECIFIED. Placeholder barrel diameter.",
-    "marker_holder_length": "Depends on the unspecified marker.",
-    "marker_clamp_thickness": "Depends on the unspecified marker.",
+    "marker_holder_length": "Clamped length. Chosen for grip, not from a requirement.",
+    "marker_mount_offset": "Set so the pen's tail clears the leg. No load case analysed.",
+    "marker_clamp_thickness": "Chosen for printed stiffness.",
     "marker_screw_diameter": "Fastener schedule not defined.",
     "marker_tip_offset": "Depends on the unspecified marker. It is also a user SETTING, "
                          "not a fixed feature: the same value must be used for both arcs.",
@@ -380,28 +442,66 @@ def derive(p):
     d["socket_tip_outer_radius"] = R0 - d["socket_top_z"] * tan_taper
     d["socket_tip_inner_radius"] = d["socket_top_z"] * tan_mouth
 
-    d["socket_base_bottom_z"] = -(d["cavity_radius"] + p["socket_floor_thickness"])
-    d["slot_root_z"] = -(d["cavity_radius"] + p["socket_slot_root_offset"])
+    d["slot_root_z"] = -p["socket_slot_root_depth"]
+
+    # ---- rear loading: bore, plug thread, base ----------------------------
+    # The ball now enters from below, so everything under the equator has to
+    # be wider than the ball. That single constraint sets the whole base.
+    d["plug_bore_radius"] = d["ball_radius"] + p["socket_plug_clearance"]
+    d["plug_thread_depth"] = p["socket_plug_pitch"] * p["thread_depth_ratio"]
+    d["plug_thread_major_radius"] = d["plug_bore_radius"] + d["plug_thread_depth"]
+    d["socket_base_outer_radius"] = (d["plug_thread_major_radius"]
+                                     + p["socket_base_wall"])
+    # Plain neck below the fingers: the collar advances into this space, so
+    # the base cannot widen until the collar has finished travelling.
+    d["socket_neck_bottom_z"] = -p["socket_neck_length"]
+    d["plug_thread_top_z"] = (d["slot_root_z"]
+                              - p["socket_slot_relief_diameter"] / 2.0
+                              - p["socket_plug_thread_gap"]
+                              - 0.7)
+    d["plug_thread_bottom_z"] = (d["plug_thread_top_z"]
+                                 - p["socket_plug_thread_length"])
+    d["socket_base_bottom_z"] = (d["plug_thread_bottom_z"]
+                                 - p["socket_plug_thread_gap"])
     d["socket_total_height"] = d["socket_top_z"] - d["socket_base_bottom_z"]
 
-    # Flexing length of one finger, measured to the point that actually has
-    # to open up (the mouth), not to the finger tip.
+    # Where the leg's tip block seats. The tenon now lives on the plug, so
+    # this is below the plug's flange rather than on the socket itself.
+    d["joint_mating_z"] = d["socket_base_bottom_z"] - p["plug_flange_thickness"]
+
+    # Plug: spherical seat starting plug_seat_depth below the ball centre.
+    d["plug_seat_rim_radius"] = math.sqrt(max(d["cavity_radius"] ** 2
+                                              - p["plug_seat_depth"] ** 2, 0.0))
+    d["plug_body_radius"] = d["plug_bore_radius"] - p["plug_body_clearance"]
+    d["plug_rim_wall"] = d["plug_body_radius"] - d["plug_seat_rim_radius"]
+    d["plug_total_length"] = (-p["plug_seat_depth"]) - d["joint_mating_z"]
+
+    # Flexing length of one finger, measured to the point that actually moves
+    # (the mouth), not to the finger tip.
     d["finger_lever_length"] = d["mouth_z"] - d["slot_root_z"]
 
-    # Cantilever surface strain at the slot root for a tip deflection equal
-    # to snap_in_deflection:  eps = 3 * t * delta / (2 * L^2)
-    d["finger_root_strain"] = (3.0 * p["socket_wall_thickness"] * d["snap_in_deflection"]
-                               / (2.0 * d["finger_lever_length"] ** 2))
+    def _strain(deflection):
+        """Cantilever surface strain at the slot root: 3*t*delta/(2*L^2)."""
+        return (3.0 * p["socket_wall_thickness"] * deflection
+                / (2.0 * d["finger_lever_length"] ** 2))
+
+    # With rear loading the ball never passes the mouth, so the fingers only
+    # ever flex by the clamping clearance. The insertion figure is kept as a
+    # reference: it is what broke the first printed socket.
+    d["finger_clamp_strain"] = _strain(p["socket_clearance"])
+    d["finger_insertion_strain"] = 0.0
+    d["finger_strain_if_pressed_in"] = _strain(d["snap_in_deflection"])
+    d["finger_root_strain"] = d["finger_clamp_strain"]
 
     # ---- thread -----------------------------------------------------------
     h = p["thread_pitch"] * p["thread_depth_ratio"]
     d["thread_depth"] = h
     # The socket base cylinder IS the thread core, so the major diameter
     # follows the wall thickness. This is why it is derived, not set.
-    d["thread_major_radius"] = R0 + h
+    d["thread_major_radius"] = d["socket_base_outer_radius"] + h
     d["thread_diameter"] = 2.0 * d["thread_major_radius"]
     d["thread_bottom_z"] = d["socket_base_bottom_z"] + p["socket_thread_end_gap"]
-    d["thread_top_z"] = -p["socket_thread_top_gap"]
+    d["thread_top_z"] = d["socket_neck_bottom_z"] - p["socket_thread_top_gap"]
     d["thread_length"] = d["thread_top_z"] - d["thread_bottom_z"]
     d["thread_turns"] = d["thread_length"] / p["thread_pitch"]
 
@@ -418,7 +518,7 @@ def derive(p):
     # ratio tan(taper) is what makes the friction adjustable by hand.
     d["collar_advance_to_close"] = p["socket_clearance"] / tan_taper
 
-    d["collar_bottom_z"] = -p["collar_thread_bore_length"]
+    d["collar_bottom_z"] = d["thread_top_z"] - p["collar_thread_bore_length"]
 
     # The cone must stay longer than the fingers over the whole tightening
     # stroke, otherwise the collar's top rim lands on the finger tips and the
@@ -462,13 +562,23 @@ def derive(p):
         d["stud_top_z"] = p["ball_stem_length"]
 
     # ---- ear piece --------------------------------------------------------
-    # Cone grows from the tip to the stopper face.
-    d["earpiece_base_diameter"] = (p["earpiece_tip_diameter"]
-                                   + 2.0 * p["earpiece_stopper_offset"]
-                                   * math.tan(rad(p["earpiece_taper_angle"])))
-    d["earpiece_total_length"] = (p["earpiece_stopper_offset"]
-                                  + p["earpiece_stopper_thickness"]
-                                  + p["earpiece_body_length"])
+    # Nozzle, stopper flange, body. The silicone eartip covers the nozzle and
+    # bottoms against the stopper, so the resin never touches the ear.
+    d["earpiece_nozzle_base_z"] = (p["earpiece_body_length"]
+                                   + p["earpiece_stopper_thickness"])
+    d["earpiece_total_length"] = (d["earpiece_nozzle_base_z"]
+                                  + p["earpiece_nozzle_length"])
+    # Free length of Ø nozzle shaft behind the bead: this is what the eartip
+    # actually grips once it has snapped past the bead.
+    d["earpiece_nozzle_grip_length"] = (p["earpiece_nozzle_length"]
+                                        - p["earpiece_nozzle_lip_length"]
+                                        - p["earpiece_nozzle_lip_ramp"]
+                                        - p["earpiece_nozzle_tip_chamfer"])
+    # How far the eartip has to stretch to pass the bead, on the radius.
+    d["earpiece_lip_interference"] = (p["earpiece_nozzle_lip_diameter"]
+                                      - p["earpiece_nozzle_diameter"]) / 2.0
+    d["earpiece_stopper_overhang"] = (p["earpiece_stopper_diameter"]
+                                      - p["earpiece_nozzle_lip_diameter"]) / 2.0
     # Material behind the female thread, at the bottom of the blind socket.
     d["earpiece_socket_floor"] = p["earpiece_body_length"] - p["earpiece_socket_depth"]
 
@@ -540,6 +650,14 @@ def derive(p):
     # ---- marker holder -----------------------------------------------------
     d["marker_bore_radius"] = p["marker_diameter"] / 2.0 + p["marker_clearance"]
     d["marker_holder_outer_radius"] = d["marker_bore_radius"] + p["marker_clamp_thickness"]
+    # The pen is longer than the holder, so part of it protrudes towards the
+    # scalp and the rest trails out of the back.
+    d["marker_tail_length"] = (p["marker_length"] - p["marker_tip_offset"]
+                               - p["marker_holder_length"])
+    # Gap between the trailing pen and the leg's tip block, on the radius.
+    d["marker_tail_clearance"] = (p["marker_mount_offset"]
+                                  - p["leg_tip_width"] / 2.0
+                                  - d["marker_bore_radius"])
 
     # ---- reference frame --------------------------------------------------
     d["ear_half_distance"] = p["ref_ear_to_ear_distance"] / 2.0

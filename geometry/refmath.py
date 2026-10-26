@@ -60,7 +60,7 @@ def arc_intersections(p, d, radius=None, samples=2048):
     reference head - a real and useful failure signal.
     """
     R = p["ref_arc_radius"] if radius is None else radius
-    e = d["ear_half_distance"]
+    e = pivot_half_distance(p, d)
     target = R * R - e * e
     if target < 0.0:
         return []                      # radius cannot even span to the midline
@@ -137,14 +137,20 @@ def ellipsoid_clearance(p, point):
     return r * (1.0 - 1.0 / f)
 
 
-def radius_check(p, d, point):
-    """Left/right radii to a point, and their mismatch. Should be identical."""
-    left, right = ear_points(p, d)
+def radius_check(p, d, point, from_pivots=True):
+    """
+    Left/right radii to a point, and their mismatch.
+
+    Measured from the PIVOTS by default, since those are the centres the
+    arcs are actually struck about. Equal radii are what force the crossing
+    onto x = 0, so the mismatch is the number that matters.
+    """
+    left, right = pivot_points(p, d) if from_pivots else ear_points(p, d)
     dl, dr = distance(left, point), distance(right, point)
     return {"left_radius": dl, "right_radius": dr, "mismatch": abs(dl - dr)}
 
 
-def required_reach(p, d, point=None):
+def required_reach(p, d, point=None):   # noqa: D401
     """
     Straight-line distance an assembled leg must cover: ear reference point
     to marker tip. This is what sets leg_length in Phase 5.
@@ -153,9 +159,77 @@ def required_reach(p, d, point=None):
         point = marker_tip_target(p, d)
     if point is None:
         return None
-    left, _ = ear_points(p, d)
+    left, _ = pivot_points(p, d)
     return distance(left, point)
 
+
+
+def ear_axis(p, d, side="left"):
+    """
+    Unit vector along the ear canal, pointing OUTWARD (away from the head).
+
+    Both angles zero means the canal runs straight across, so the left axis
+    is +X. Neither angle is measured - the canal's true direction is a
+    clinical question, and both are exposed so it can be corrected.
+    """
+    a = math.radians(p["ref_ear_axis_anterior_angle"])
+    s_ = math.radians(p["ref_ear_axis_superior_angle"])
+    v = (math.cos(a) * math.cos(s_), math.sin(a), math.sin(s_))
+    n = math.sqrt(sum(c * c for c in v))
+    v = tuple(c / n for c in v)
+    return v if side == "left" else (-v[0], v[1], v[2])
+
+
+def pivot_points(p, d):
+    """
+    The two points the instrument actually turns about, one per ear.
+
+    With the ball joint locked these are the ear reference points. With it
+    free - the way the client intends to use it - the ear piece stays in the
+    ear and the compass swings about the BALL CENTRE, which sits
+    ball_centre_standoff further out along the canal axis.
+
+    Either way the two pivots stay symmetric about x = 0, so the
+    perpendicular-bisector construction is still exact. What changes is how
+    far apart they are, and therefore what radius is needed to reach the
+    midline at all.
+    """
+    left, right = ear_points(p, d)
+    if p.get("pivot_mode", "ball_centre") == "ear_point":
+        return left, right
+    off = d["ball_centre_standoff"]
+    ul, ur = ear_axis(p, d, "left"), ear_axis(p, d, "right")
+    return (tuple(left[i] + ul[i] * off for i in range(3)),
+            tuple(right[i] + ur[i] * off for i in range(3)))
+
+
+def pivot_half_distance(p, d):
+    """Half the separation of the two pivots."""
+    left, right = pivot_points(p, d)
+    return 0.5 * distance(left, right)
+
+
+def reachable_radius_range(p, d, samples=720):
+    """
+    The radii that actually put a crossing on the midline scalp.
+
+    An arc struck from a pivot only meets the mid-sagittal scalp if its
+    radius is large enough to span from the pivot to the midline, and small
+    enough not to overshoot the vault. Sweeping the cranial ellipse gives
+    both ends directly, and this is what catches a radius that cannot work
+    before anyone prints anything.
+    """
+    e = pivot_half_distance(p, d)
+    lo = hi = None
+    for i in range(samples):
+        t = 2.0 * math.pi * i / samples
+        _, y, z = midline_ellipse_point(p, t)
+        if z < 0.0:
+            continue
+        r = math.sqrt(e * e + y * y + z * z)
+        lo = r if lo is None else min(lo, r)
+        hi = r if hi is None else max(hi, r)
+    return lo, hi
 
 
 def _orthonormal_frame(u):
@@ -253,9 +327,17 @@ def summary(p, d):
     left, right = ear_points(p, d)
     ant = marker_tip_target(p, d, which="anterior")
     post = marker_tip_target(p, d, which="posterior")
+    pl, pr = pivot_points(p, d)
+    lo_r, hi_r = reachable_radius_range(p, d)
     out = {
         "left_ear_reference": left,
         "right_ear_reference": right,
+        "pivot_mode": p.get("pivot_mode", "ball_centre"),
+        "left_pivot": pl,
+        "right_pivot": pr,
+        "pivot_half_distance": pivot_half_distance(p, d),
+        "reachable_radius_min": lo_r,
+        "reachable_radius_max": hi_r,
         "head_center": head_center(p),
         "head_top": head_top(p),
         "arc_radius": p["ref_arc_radius"],

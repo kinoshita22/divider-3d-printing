@@ -40,34 +40,17 @@ import FreeCAD as App
 from FreeCAD import Vector
 
 from . import ear_piece as ear_piece_mod
+from . import marker_holder as marker_mod
 from . import legs as legs_mod
 from . import refmath
 
 
 def module_reach(p, d):
-    """
-    Distance from a leg's tip-block face to the functional point of the
-    module bolted to it.
-    """
+    """Rough module extents, used only for clearance sampling."""
     return {
-        # block face -> socket base -> ball centre -> ear piece tip
         "pivot": -d["socket_base_bottom_z"] + d["ball_centre_standoff"],
-        # block face -> holder front face -> marker tip
         "drawing": p["marker_holder_length"] + p["marker_tip_offset"],
     }
-
-
-def functional_points(p, d, half_angle):
-    """Ear-piece tip and marker tip, in compass coordinates."""
-    reach = module_reach(p, d)
-    out = {}
-    for key, side in (("ear", 1), ("marker", -1)):
-        f = legs_mod.tip_frame(p, d, side, half_angle)
-        r = reach["pivot"] if side > 0 else reach["drawing"]
-        out[key] = f["origin"] + f["direction"] * r
-        out[key + "_frame"] = f
-    out["radius"] = (out["ear"] - out["marker"]).Length
-    return out
 
 
 def solve_half_angle(p, d, radius, lo=1.0, hi=None, iters=80):
@@ -90,6 +73,51 @@ def solve_half_angle(p, d, radius, lo=1.0, hi=None, iters=80):
 
 
 # --------------------------------------------------------------------------
+def module_mating_point(p, d, which):
+    """
+    The point in a module's OWN frame that beds against the leg's tip block.
+
+    The ball joint meets it on its axis; the marker holder does not - its
+    barrel is offset sideways so the pen's tail can pass the leg - so this
+    cannot be reduced to a distance along the module axis.
+    """
+    if which == "ball":
+        # The tenon moved onto the base plug when the socket was opened for
+        # rear loading, so the leg seats below the plug's flange.
+        return Vector(0.0, 0.0, d["joint_mating_z"])
+    if which == "marker":
+        return marker_mod.tenon_face_local(p, d)
+    raise ValueError(which)
+
+
+def _module_placement(frame, leg_rot, mating_local):
+    """
+    Seat a module on a leg tip.
+
+    All three axes are pinned, not just the module's +Z. A rotation that only
+    maps +Z onto the tip direction leaves the spin about that axis free, and
+    the tenon then lands at an angle inside its rectangular mortise - which
+    shows up as four small corner interferences rather than an obvious error.
+
+        +Z -> the tip tangent, the way the module points
+        +Y -> the leg's thickness direction, so the tenon's thickness lines
+              up with the mortise
+        +X -> completes a right-handed set
+    """
+    ez = Vector(frame["direction"])
+    ez.normalize()
+    ey = leg_rot.multVec(Vector(0, 0, 1))
+    ey = ey - ez * ey.dot(ez)
+    ey.normalize()
+    ex = ey.cross(ez)
+    m = App.Matrix(ex.x, ey.x, ez.x, 0.0,
+                   ex.y, ey.y, ez.y, 0.0,
+                   ex.z, ey.z, ez.z, 0.0,
+                   0.0, 0.0, 0.0, 1.0)
+    rot = App.Placement(m).Rotation
+    return App.Placement(frame["origin"] - rot.multVec(mating_local), rot)
+
+
 def component_placements(p, d, half_angle):
     """Placement of every component, in compass coordinates."""
     out = {
@@ -99,41 +127,13 @@ def component_placements(p, d, half_angle):
         "HingeWasher": App.Placement(),
         "HingeKnob": App.Placement(),
     }
-    fp = functional_points(p, d, half_angle)
+    ear_frame = legs_mod.tip_frame(p, d, 1, half_angle)
+    mk_frame = legs_mod.tip_frame(p, d, -1, half_angle)
 
-    def module_placement(frame, leg_rot, local_origin_z):
-        """
-        Seat a module on a leg tip.
-
-        All three axes have to be pinned down, not just the module's own +Z.
-        A rotation that only maps +Z onto the tip direction leaves the spin
-        about that axis arbitrary, and the tenon then lands at some angle
-        inside its rectangular mortise - which reads as four little corner
-        interferences rather than an obvious error.
-
-            +Z -> the tip tangent, the way the module points
-            +Y -> the leg's thickness direction, because the tenon's
-                  thickness is what has to line up with the mortise
-            +X -> completes a right-handed set
-        """
-        ez = Vector(frame["direction"])
-        ez.normalize()
-        ey = leg_rot.multVec(Vector(0, 0, 1))
-        ey = ey - ez * ey.dot(ez)          # guard against round-off
-        ey.normalize()
-        ex = ey.cross(ez)
-        m = App.Matrix(ex.x, ey.x, ez.x, 0.0,
-                       ex.y, ey.y, ez.y, 0.0,
-                       ex.z, ey.z, ez.z, 0.0,
-                       0.0, 0.0, 0.0, 1.0)
-        rot = App.Placement(m).Rotation
-        pos = frame["origin"] - ez * local_origin_z
-        return App.Placement(pos, rot)
-
-    out["BallStud"] = module_placement(fp["ear_frame"],
-                                       out["Leg_Pivot"].Rotation,
-                                       d["socket_base_bottom_z"])
+    out["BallStud"] = _module_placement(ear_frame, out["Leg_Pivot"].Rotation,
+                                        module_mating_point(p, d, "ball"))
     out["Socket"] = out["BallStud"]
+    out["BasePlug"] = out["BallStud"]
     out["Collar"] = out["BallStud"]
     # Seated on the stud's relief neck, and spun by the thread phase offset
     # so the printed female thread actually meshes with the male one.
@@ -141,8 +141,39 @@ def component_placements(p, d, half_angle):
         App.Placement(Vector(0, 0, d["stud_thread_base_z"]),
                       App.Rotation(Vector(0, 0, 1),
                                    ear_piece_mod.thread_phase_offset(p))))
-    out["MarkerHolder"] = module_placement(fp["marker_frame"],
-                                          out["Leg_Drawing"].Rotation, 0.0)
+    out["MarkerHolder"] = _module_placement(mk_frame, out["Leg_Drawing"].Rotation,
+                                            module_mating_point(p, d, "marker"))
+    return out
+
+
+def functional_points(p, d, half_angle):
+    """
+    The points that matter geometrically, in compass coordinates.
+
+    Two radii are reported because they answer different questions. With the
+    ball joint locked the instrument turns about the ear canal, so the arc
+    radius is ear tip to marker tip. With it free - the intended use - the
+    ear piece stays put and the compass turns about the BALL CENTRE, so the
+    radius is measured from there instead. The two differ by roughly the
+    length of the ear piece stack, which is not a small number.
+    """
+    pl = component_placements(p, d, half_angle)
+    ball = pl["BallStud"].multVec(Vector(0, 0, 0))
+    ear = pl["BallStud"].multVec(Vector(0, 0, d["ball_centre_standoff"]))
+    marker = pl["MarkerHolder"].multVec(marker_mod.marker_tip_local(p, d))
+    # Stud axis points from the ball towards the ear piece.
+    stud_axis = pl["BallStud"].Rotation.multVec(Vector(0, 0, 1))
+    out = {
+        "ball_centre": ball, "ear": ear, "marker": marker,
+        "stud_axis": stud_axis,
+        "radius_ear": (ear - marker).Length,
+        "radius_ball": (ball - marker).Length,
+        "placements": pl,
+    }
+    out["radius"] = (out["radius_ear"]
+                     if p.get("pivot_mode", "ball_centre") == "ear_point"
+                     else out["radius_ball"])
+    out["pivot"] = ear if p.get("pivot_mode", "ball_centre") == "ear_point" else ball
     return out
 
 
@@ -174,14 +205,21 @@ def _sample_points(p, d, half_angle, placements, n=48):
                                p["leg_thickness"] / 2.0)
             pts.append((pl.multVec(local), 0.0, "leg"))
 
-    fp = functional_points(p, d, half_angle)
-
-    # (b) ball joint body: block face out to the top of the collar
-    f = fp["ear_frame"]
-    joint_len = -d["socket_base_bottom_z"] + d["collar_top_z"]
+    # (b) ball joint body: socket base out to the top of the collar, sampled
+    #     on the joint axis with the collar's radius as the allowance.
+    pl = placements["BallStud"]
     for i in range(11):
-        pts.append((f["origin"] + f["direction"] * (joint_len * i / 10.0),
-                    d["collar_outer_radius"], "ball joint"))
+        z = d["joint_mating_z"] + (d["collar_top_z"] - d["joint_mating_z"]) * i / 10.0
+        pts.append((pl.multVec(Vector(0, 0, z)), d["collar_outer_radius"],
+                    "ball joint"))
+
+    # (d) the pen's trailing 108 mm. It is not a printed part, but it sweeps
+    #     the same space and has to miss both the head and the leg.
+    pl = placements["MarkerHolder"]
+    for i in range(13):
+        z = -d["marker_tail_length"] * i / 12.0
+        pts.append((pl.multVec(Vector(0, 0, z)), d["marker_bore_radius"],
+                    "marker tail"))
 
     # (c) marker holder. The barrel is a cylinder, so its axis carries the
     #     barrel radius as an allowance. The clamp lugs are NOT axisymmetric
@@ -204,24 +242,25 @@ def _sample_points(p, d, half_angle, placements, n=48):
     return pts
 
 
-def _rigid_to_head(p, ear_point, target_point, ear_local, marker_local, roll_deg):
+def _rigid_to_head(p, pivot_point, target_point, anchor_local, marker_local,
+                   roll_deg):
     """
-    Transform taking the compass frame onto the head: ear tip to the ear
-    reference point, marker tip to the arc crossing, then `roll` about the
-    line between them.
+    Transform taking the compass frame onto the head: the instrument's pivot
+    onto the head's pivot point, the marker tip onto the arc crossing, then
+    `roll` about the line between them.
     """
-    v_local = marker_local - ear_local
-    v_head = Vector(*target_point) - Vector(*ear_point)
+    v_local = marker_local - anchor_local
+    v_head = Vector(*target_point) - Vector(*pivot_point)
     base = App.Rotation(v_local, v_head)
     axis = Vector(v_head)
     axis.normalize()
     roll = App.Rotation(axis, roll_deg)
     rot = roll.multiply(base)
-    pos = Vector(*ear_point) - rot.multVec(ear_local)
+    pos = Vector(*pivot_point) - rot.multVec(anchor_local)
     return App.Placement(pos, rot)
 
 
-def head_placement(p, d, half_angle, ear_point, target_point, roll_deg=None,
+def head_placement(p, d, half_angle, pivot_point, target_point, roll_deg=None,
                    coarse=10.0, mode=None):
     """
     Put the assembled compass on the head.
@@ -239,11 +278,15 @@ def head_placement(p, d, half_angle, ear_point, target_point, roll_deg=None,
     silent choice.
     """
     fp = functional_points(p, d, half_angle)
-    placements = component_placements(p, d, half_angle)
+    placements = fp["placements"]
     samples = _sample_points(p, d, half_angle, placements)
+    # The instrument is landed by its PIVOT, not by the ear tip: with the
+    # ball joint free it is the pivot that stays put while everything else
+    # swings around it.
+    anchor = fp["pivot"]
 
     def clearance_by_group(roll):
-        tr = _rigid_to_head(p, ear_point, target_point, fp["ear"], fp["marker"], roll)
+        tr = _rigid_to_head(p, pivot_point, target_point, anchor, fp["marker"], roll)
         out = {}
         for pt, allow, grp in samples:
             q = tr.multVec(pt)
@@ -256,14 +299,14 @@ def head_placement(p, d, half_angle, ear_point, target_point, roll_deg=None,
         return min(clearance_by_group(roll).values())
 
     if roll_deg is not None:
-        return (_rigid_to_head(p, ear_point, target_point, fp["ear"], fp["marker"],
+        return (_rigid_to_head(p, pivot_point, target_point, anchor, fp["marker"],
                                roll_deg), worst_clearance(roll_deg), roll_deg,
                 clearance_by_group(roll_deg))
 
     mode = p.get("assembly_roll_mode", "max_clearance") if mode is None else mode
 
     def hinge_height(roll):
-        tr = _rigid_to_head(p, ear_point, target_point, fp["ear"], fp["marker"],
+        tr = _rigid_to_head(p, pivot_point, target_point, anchor, fp["marker"],
                             roll)
         return tr.multVec(Vector(0, 0, 0)).z
 
@@ -303,12 +346,12 @@ def head_placement(p, d, half_angle, ear_point, target_point, roll_deg=None,
                 if c > best:
                     best, best_roll = c, cand
             step *= 0.5
-    return (_rigid_to_head(p, ear_point, target_point, fp["ear"], fp["marker"],
+    return (_rigid_to_head(p, pivot_point, target_point, anchor, fp["marker"],
                            best_roll), best, best_roll % 360.0,
             clearance_by_group(best_roll))
 
 
-def sweep_clearance(p, d, half_angle, ear_point, targets, coarse=15.0):
+def sweep_clearance(p, d, half_angle, pivot_point, targets, coarse=15.0):
     """
     Clearance along the whole marking stroke, not just at its ends.
 
@@ -322,8 +365,8 @@ def sweep_clearance(p, d, half_angle, ear_point, targets, coarse=15.0):
     rows = []
     for t in targets:
         pt = t["point"]
-        _, clear, roll, groups = head_placement(p, d, half_angle, ear_point, pt,
-                                                coarse=coarse)
+        _, clear, roll, groups = head_placement(p, d, half_angle, pivot_point,
+                                                pt, coarse=coarse)
         rows.append({"point": pt, "clearance": clear, "roll": roll,
                      "groups": groups})
         if worst is None or clear < worst["clearance"]:
@@ -331,7 +374,7 @@ def sweep_clearance(p, d, half_angle, ear_point, targets, coarse=15.0):
     return {"worst": worst, "samples": rows}
 
 
-def assembly(p, d, radius=None, ear_point=None, target=None, roll=None):
+def assembly(p, d, radius=None, pivot_point=None, target=None, roll=None):
     """
     Everything needed to place the instrument on the head for one arc:
     the opening angle, the component placements, and the pose.
@@ -344,9 +387,96 @@ def assembly(p, d, radius=None, ear_point=None, target=None, roll=None):
            "opening_angle": 2.0 * half,
            "placements": component_placements(p, d, half),
            "functional": functional_points(p, d, half)}
-    if ear_point is not None and target is not None:
-        pose, clear, used_roll, groups = head_placement(p, d, half, ear_point,
+    if pivot_point is not None and target is not None:
+        pose, clear, used_roll, groups = head_placement(p, d, half, pivot_point,
                                                         target, roll_deg=roll)
         out.update({"pose": pose, "clearance": clear, "roll": used_roll,
                     "clearance_groups": groups})
     return out
+
+
+def joint_demand(p, d, half_angle, side="left", coarse=6.0, refine=True):
+    """
+    What the ball joint is actually asked to do while an arc is drawn.
+
+    The client's question: is the long swing from forehead to occiput carried
+    by the joint's SPIN, with the tilt only taking up the difference between
+    the ear canal's direction and the leg's? This answers it with numbers.
+
+    Geometry of the problem. The ear piece is held in the ear, so the stud
+    axis is fixed in space along the canal. The ball centre is fixed too - it
+    belongs to both bodies. The compass therefore has exactly three freedoms
+    about that centre: spin about the stud axis, which is UNLIMITED, and tilt
+    away from it, which is not.
+
+    For each point along the stroke the instrument is landed on its pivot and
+    its marker tip, which leaves one freedom - roll about the line joining
+    them. Rolling changes how far the stud axis has to lean, so the roll that
+    minimises the lean is the one the user would naturally adopt, and that
+    minimum is the tilt the joint must supply. Anything above
+    ball_joint_max_angle is a position the instrument cannot reach.
+
+    Returns the tilt demanded at each sample, plus the spin swept, which is
+    what actually carries the stroke.
+    """
+    fp = functional_points(p, d, half_angle)
+    pivot_l, pivot_r = refmath.pivot_points(p, d)
+    pivot = pivot_l if side == "left" else pivot_r
+    # The ear piece points INTO the ear, i.e. opposite the outward canal axis.
+    u_out = refmath.ear_axis(p, d, side)
+    required_axis = Vector(-u_out[0], -u_out[1], -u_out[2])
+
+    targets = refmath.sweep_targets(p, d, pivot)
+    if not targets:
+        return {"reachable": False, "samples": [], "targets": 0}
+
+    rows = []
+    for t in targets:
+        best = None
+        r = 0.0
+        while r < 360.0:
+            tr = _rigid_to_head(p, pivot, t["point"], fp["pivot"], fp["marker"], r)
+            axis = tr.Rotation.multVec(fp["stud_axis"])
+            tilt = math.degrees(axis.getAngle(required_axis))
+            if best is None or tilt < best[0]:
+                best = (tilt, r, axis)
+            r += coarse
+        if refine:
+            step = coarse / 2.0
+            while step > 0.05:
+                for cand in (best[1] - step, best[1] + step):
+                    tr = _rigid_to_head(p, pivot, t["point"], fp["pivot"],
+                                        fp["marker"], cand)
+                    axis = tr.Rotation.multVec(fp["stud_axis"])
+                    tilt = math.degrees(axis.getAngle(required_axis))
+                    if tilt < best[0]:
+                        best = (tilt, cand, axis)
+                step *= 0.5
+        rows.append({"point": t["point"], "tilt": best[0], "roll": best[1] % 360.0})
+
+    tilts = [r["tilt"] for r in rows]
+    # Spin swept: how far the marker travels around the canal axis. This is
+    # the motion that actually draws the arc.
+    def azimuth(pt):
+        v = Vector(pt[0] - pivot[0], pt[1] - pivot[1], pt[2] - pivot[2])
+        axial = Vector(*u_out) * v.dot(Vector(*u_out))
+        perp = v - axial
+        return perp
+
+    ref = azimuth(rows[0]["point"])
+    spins = []
+    for r in rows:
+        q = azimuth(r["point"])
+        if ref.Length > 1e-9 and q.Length > 1e-9:
+            spins.append(math.degrees(ref.getAngle(q)))
+    return {
+        "reachable": True,
+        "targets": len(rows),
+        "samples": rows,
+        "tilt_min": min(tilts),
+        "tilt_max": max(tilts),
+        "tilt_range": max(tilts) - min(tilts),
+        "spin_swept": max(spins) if spins else 0.0,
+        "limit": p["ball_joint_max_angle"],
+        "within_limit": max(tilts) <= p["ball_joint_max_angle"],
+    }

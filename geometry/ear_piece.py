@@ -1,27 +1,34 @@
 """
 PHASE 4 - ear piece.
 
-Client-stated shape: a smooth tapered cone that centres itself in the ear
-opening, with a stopper flange of about 15 mm diameter a few millimetres
-back from the tip so the cone cannot be pushed in too far.
+REVISED 2026-09-18 at the client's request.
 
-    z = 0 .......... rear face, screws onto the ball stud
-    z = 0..14 ...... body, with the female thread bored into it
-    z = 14..17 ..... stopper flange, 15 mm diameter (client-stated)
-    z = 17..24 ..... tapered cone
-    z = 24 ......... rounded tip
+The printed resin no longer touches the ear. The tip is an earphone-style
+nozzle that carries a commercial silicone eartip (standard size), so the
+only thing entering the ear is the same silicone the patient would meet in
+a pair of earphones. The Ø15 stopper flange is retained and now does double
+duty: it still limits insertion depth, and it is the wall the silicone base
+seats against.
 
-NOT CLINICALLY VALIDATED. Every insertion dimension here - tip diameter,
-taper angle, how far the stopper sits behind the tip, insertion depth - was
-chosen by the CAD engineer so that a model could be built at all. None of it
-came from the client, from anatomy, or from any measurement. The stopper
-diameter is the single exception and is the client's own figure.
+    z = 0 ......... rear face, screws onto the ball stud
+    z = 0..14 ..... body, with the female thread bored into it
+    z = 14..17 .... stopper flange, Ø15 (client-stated)
+    z = 17..23 .... nozzle, Ø4.5 shaft with a Ø5.5 retaining bead
+    z = 23 ........ tip
 
-Anything that goes near an ear canal has to be signed off by someone
-clinically qualified before a prototype is put anywhere near a person.
+The three nozzle figures - Ø4.5 shaft, Ø5.5 bead at the tip, 6.0 mm long -
+are client-stated. The bead's ramp and crest widths are not, and are set so
+the eartip can be pushed on by hand: a 0.5 mm interference on the radius,
+reached over a 0.6 mm ramp.
 
-Every edge that could contact tissue is filleted; the tip is a sphere rather
-than a flat face, so there is no sharp rim anywhere on the inserted length.
+THE NOZZLE ROOT IS DELIBERATELY NOT FILLETED. A radius there would hold the
+silicone base off the stopper face, and the client specifically wants the
+flange to act as the wall that base seats against. Every other exposed edge
+is broken.
+
+Still not clinically validated: how deep the silicone sits, which eartip
+size suits, and whether the stopper's Ø15 is right for the intended
+population. Those are clinical questions, not CAD ones.
 """
 
 from __future__ import annotations
@@ -30,7 +37,6 @@ import Part
 from FreeCAD import Vector
 
 from . import primitives as prim
-
 
 
 def thread_lead_in(p):
@@ -55,44 +61,77 @@ def thread_phase_offset(p):
     return -360.0 * (thread_lead_in(p) / p["ball_stud_thread_pitch"]) % 360.0
 
 
+def nozzle_profile(p, d):
+    """
+    Half-section of the nozzle, as (radius, z) pairs measured from the
+    stopper's front face. Revolved to make the nozzle.
+
+    Shape, base to tip: a plain shaft the eartip grips, a short ramp onto the
+    retaining bead, the bead crest, then a chamfer to a small flat at the
+    tip. The eartip is pushed on over the chamfer, stretches across the bead
+    and snaps down onto the shaft behind it.
+    """
+    L = p["earpiece_nozzle_length"]
+    r_shaft = p["earpiece_nozzle_diameter"] / 2.0
+    r_lip = p["earpiece_nozzle_lip_diameter"] / 2.0
+    r_tip = p["earpiece_nozzle_tip_diameter"] / 2.0
+    lip_len = p["earpiece_nozzle_lip_length"]
+    ramp = p["earpiece_nozzle_lip_ramp"]
+    cham = p["earpiece_nozzle_tip_chamfer"]
+
+    z_ramp_start = L - cham - lip_len - ramp
+    if z_ramp_start <= 0.2:
+        raise prim.GeometryError(
+            "nozzle features (%.2f + %.2f + %.2f mm) do not fit in "
+            "earpiece_nozzle_length %.2f mm"
+            % (ramp, lip_len, cham, L))
+    if r_lip <= r_shaft:
+        raise prim.GeometryError(
+            "earpiece_nozzle_lip_diameter (%.2f) must exceed "
+            "earpiece_nozzle_diameter (%.2f) or the eartip has nothing to "
+            "snap behind" % (p["earpiece_nozzle_lip_diameter"],
+                             p["earpiece_nozzle_diameter"]))
+    return [
+        (0.0, 0.0),
+        (r_shaft, 0.0),
+        (r_shaft, z_ramp_start),
+        (r_lip, z_ramp_start + ramp),
+        (r_lip, z_ramp_start + ramp + lip_len),
+        (r_tip, L),
+        (0.0, L),
+    ]
+
+
+def make_nozzle(p, d):
+    """Solid of revolution for the eartip nozzle, based at z = 0."""
+    pts = [Vector(r, 0.0, z) for r, z in nozzle_profile(p, d)]
+    wire = Part.Wire(Part.makePolygon(pts + [pts[0]]))
+    face = Part.Face(wire)
+    return face.revolve(Vector(0, 0, 0), Vector(0, 0, 1), 360.0)
+
+
 def make_ear_piece(p, d, warnings):
     body_l = p["earpiece_body_length"]
     stop_t = p["earpiece_stopper_thickness"]
-    cone_l = p["earpiece_stopper_offset"]
-    tip_r = p["earpiece_tip_diameter"] / 2.0
-    base_r = d["earpiece_base_diameter"] / 2.0
 
     body = Part.makeCylinder(p["earpiece_body_diameter"] / 2.0, body_l)
     stopper = Part.makeCylinder(p["earpiece_stopper_diameter"] / 2.0, stop_t,
                                 Vector(0, 0, body_l))
     shape = prim.safe_fuse(body, stopper, "ear_piece")
 
-    # Cone, stopping short by the tip radius so a sphere can cap it without
-    # the nose growing past earpiece_total_length.
-    z_cone = body_l + stop_t
-    cone_h = cone_l - tip_r
-    if cone_h <= 0.1:
-        raise prim.GeometryError(
-            "earpiece_stopper_offset (%.2f) must exceed the tip radius (%.2f)"
-            % (cone_l, tip_r))
-    # Radius where the sphere meets the cone, so the two blend tangentially.
-    r_at_sphere = base_r - (base_r - tip_r) * (cone_h / cone_l)
-    cone = Part.makeCone(base_r, r_at_sphere, cone_h, Vector(0, 0, z_cone))
-    nose = Part.makeSphere(tip_r, Vector(0, 0, z_cone + cone_h))
-    shape = prim.safe_fuse(shape, cone, "ear_piece").fuse(nose).removeSplitter()
+    nozzle = make_nozzle(p, d)
+    nozzle.translate(Vector(0, 0, d["earpiece_nozzle_base_z"]))
+    shape = prim.safe_fuse(shape, nozzle, "ear_piece").removeSplitter()
 
-    # Female thread for the ball stud. Cut with the SAME generator as the
-    # stud's male thread, grown by the print clearance. Both threads start at
-    # the same height in the assembled joint, so they are drawn in phase.
-    # The tool runs past this part's z = 0 - which is where the stud's own
-    # thread starts once assembled - so the first turn is fully formed.
+    # Female thread for the ball stud, cut with the SAME generator as the
+    # stud's male thread and grown by the print clearance.
     #
-    # It deliberately does NOT start a whole number of pitches back. At a
-    # whole-pitch offset the swept thread's seam edge lands exactly on the
-    # rear face and OCCT returns an invalid solid. Instead the tool starts
-    # wherever is geometrically clean, and the resulting phase difference is
-    # taken out by ROTATING the ear piece as it is assembled - which is
-    # exactly what screwing it on does in reality. See thread_phase_offset().
+    # The tool deliberately does NOT start a whole number of pitches back:
+    # at a whole-pitch offset the swept thread's seam edge lands exactly on
+    # the rear face and OCCT returns an invalid solid. It starts somewhere
+    # geometrically clean instead, and the resulting phase difference is
+    # taken out by rotating the ear piece as it is assembled - which is
+    # exactly what screwing it on does. See thread_phase_offset().
     lead_in = thread_lead_in(p)
     tool = prim.thread_solid(p,
                              major_radius=p["ball_stud_thread_diameter"] / 2.0,
@@ -101,13 +140,11 @@ def make_ear_piece(p, d, warnings):
                              pitch=p["ball_stud_thread_pitch"])
     shape = prim.safe_cut(shape, tool, "ear_piece")
 
-    # Break every exposed edge. These are the surfaces that would touch a
-    # patient, so a failed fillet is reported rather than passed over.
+    # Break the exposed edges, in two passes: the stopper's convex rim and
+    # the concave corner where it meets the body share a height, and asking
+    # OCCT to blend both at once fails while doing them in sequence works.
     #
-    # Two passes, deliberately. The body/stopper junction at z = body_l is a
-    # concave corner sharing its location with the stopper's own convex rim;
-    # asking OCCT to blend both in one operation fails, while doing them in
-    # sequence succeeds.
+    # The nozzle root is left sharp on purpose - see the module docstring.
     r = p["earpiece_fillet_radius"]
     outer = (prim.circular_edges(shape, p["earpiece_stopper_diameter"] / 2.0,
                                  zmin=body_l - 0.1, zmax=body_l + stop_t + 0.1)
